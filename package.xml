@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>draco_bridge</name>
+  <version>0.0.1</version>
+  <description>PointCloud2 TCP bridge with Draco (skeleton)</description>
+  <maintainer email="you@example.com">youngmo</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>python3-numpy</depend>
+
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
+
