@@ -13,7 +13,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('bag', default_value='/home/youngmo/Downloads/rosbag2_2024_09_24-14_28_57'),
         DeclareLaunchArgument('input_topic', default_value='/sensing/lidar/top/pointcloud'),
-        DeclareLaunchArgument('bind_ip', default_value='127.0.0.1'),
+        DeclareLaunchArgument('bind_ip', default_value='auto'),  # 'auto'로 설정하면 자동 감지
         DeclareLaunchArgument('port', default_value='50051'),
 
         ExecuteProcess(

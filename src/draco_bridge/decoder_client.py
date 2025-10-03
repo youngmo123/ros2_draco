@@ -9,11 +9,31 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPo
 from sensor_msgs.msg import PointCloud2
 from draco_bridge.utils import decode_draco
 
+def get_local_ip():
+    """로컬 IP 주소 자동 감지"""
+    try:
+        # 외부 서버(Google DNS)에 연결 시도하여 로컬 IP 확인
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        return local_ip
+    except Exception:
+        # 실패 시 localhost 반환
+        return '127.0.0.1'
+
 class DecoderClient(Node):
     def __init__(self):
         super().__init__('draco_decoder_client')
 
-        self.tcp_server_ip = self.declare_parameter('tcp_server_ip', '127.0.0.1').get_string_value()
+        # 자동으로 로컬 IP 감지 (파라미터가 'auto'면 자동 감지)
+        default_ip = self.declare_parameter('tcp_server_ip', 'auto').get_string_value()
+        if default_ip == 'auto':
+            self.tcp_server_ip = get_local_ip()
+            self.get_logger().info(f'[Decoder] Auto-detected IP: {self.tcp_server_ip}')
+        else:
+            self.tcp_server_ip = default_ip
+        
         self.tcp_server_port = self.declare_parameter('tcp_server_port', 50051).get_parameter_value().integer_value
         self.output_topic = self.declare_parameter('output_topic', '/sensing/lidar/points_raw').get_string_value()
         self.frame_id = self.declare_parameter('frame_id', 'lidar_link').get_string_value()
