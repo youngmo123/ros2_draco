@@ -22,6 +22,44 @@ def get_local_ip():
         # 실패 시 localhost 반환
         return '127.0.0.1'
 
+def discover_draco_server(port=50051, timeout=2.0, logger=None):
+    """Draco 서버 자동 탐지"""
+    try:
+        # 로컬 네트워크 대역 스캔
+        local_ip = get_local_ip()
+        base_ip = '.'.join(local_ip.split('.')[:-1])  # 192.168.0.x에서 192.168.0 추출
+        
+        if logger:
+            logger.info(f'[Decoder] Searching for Draco server in {base_ip}.x range...')
+        
+        for i in range(1, 255):  # 1-254 범위 스캔
+            target_ip = f'{base_ip}.{i}'
+            if target_ip == local_ip:
+                continue  # 자기 자신은 건너뛰기
+                
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(timeout)
+                result = sock.connect_ex((target_ip, port))
+                sock.close()
+                
+                if result == 0:  # 연결 성공
+                    if logger:
+                        logger.info(f'[Decoder] Found Draco server at {target_ip}:{port}')
+                    return target_ip
+                    
+            except Exception:
+                continue
+                
+        if logger:
+            logger.warn(f'[Decoder] No Draco server found in network range')
+        return None
+        
+    except Exception as e:
+        if logger:
+            logger.error(f'[Decoder] Server discovery failed: {e}')
+        return None
+
 class DecoderClient(Node):
     def __init__(self):
         super().__init__('draco_decoder_client')
@@ -37,8 +75,16 @@ class DecoderClient(Node):
         # 파라미터 값 가져오기
         default_ip = self.get_parameter('tcp_server_ip').get_parameter_value().string_value
         if default_ip == 'auto':
-            self.tcp_server_ip = get_local_ip()
-            self.get_logger().info(f'[Decoder] Auto-detected IP: {self.tcp_server_ip}')
+            # 먼저 서버 자동 탐지 시도
+            self.tcp_server_ip = discover_draco_server(
+                port=self.get_parameter('tcp_server_port').get_parameter_value().integer_value,
+                timeout=1.0,
+                logger=self.get_logger()
+            )
+            if self.tcp_server_ip is None:
+                # 서버 탐지 실패 시 로컬 IP 사용 (같은 컴퓨터에서 테스트)
+                self.tcp_server_ip = get_local_ip()
+                self.get_logger().info(f'[Decoder] Auto-detected IP: {self.tcp_server_ip}')
         else:
             self.tcp_server_ip = default_ip
         
