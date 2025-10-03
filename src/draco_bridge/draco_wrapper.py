@@ -118,7 +118,7 @@ def decode_pointcloud_with_draco(compressed_data):
         # 해제된 PLY 파일 읽기
         points = []
         try:
-            with open(output_file, 'r') as f:
+            with open(output_file, 'r', encoding='utf-8', errors='ignore') as f:
                 lines = f.readlines()
                 
                 # 헤더 건너뛰기
@@ -134,11 +134,15 @@ def decode_pointcloud_with_draco(compressed_data):
                 # 포인트 데이터 읽기
                 for i in range(header_end, header_end + vertex_count):
                     if i < len(lines):
-                        coords = lines[i].strip().split()
-                        if len(coords) >= 3:
-                            x, y, z = float(coords[0]), float(coords[1]), float(coords[2])
-                            intensity = float(coords[3]) if len(coords) > 3 else 0.0
-                            points.append([x, y, z, intensity])
+                        try:
+                            coords = lines[i].strip().split()
+                            if len(coords) >= 3:
+                                x, y, z = float(coords[0]), float(coords[1]), float(coords[2])
+                                intensity = float(coords[3]) if len(coords) > 3 else 0.0
+                                points.append([x, y, z, intensity])
+                        except (ValueError, IndexError):
+                            # 잘못된 데이터 라인은 건너뛰기
+                            continue
         except Exception as e:
             print(f"Error reading PLY file: {e}")
             return None
