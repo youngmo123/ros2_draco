@@ -25,17 +25,23 @@ class EncoderServer(Node):
     def __init__(self):
         super().__init__('draco_encoder_server')
 
-        # 자동으로 로컬 IP 감지 (파라미터가 'auto'면 자동 감지)
-        default_ip = self.declare_parameter('tcp_bind_ip', 'auto').get_string_value()
+        # 파라미터 선언
+        self.declare_parameter('tcp_bind_ip', 'auto')
+        self.declare_parameter('input_topic', '/sensing/lidar/top/pointcloud')
+        self.declare_parameter('output_topic', '/lidar_compressed')
+        self.declare_parameter('tcp_port', 50051)
+        
+        # 파라미터 값 가져오기
+        default_ip = self.get_parameter('tcp_bind_ip').get_parameter_value().string_value
         if default_ip == 'auto':
             self.tcp_bind_ip = get_local_ip()
             self.get_logger().info(f'[Encoder] Auto-detected IP: {self.tcp_bind_ip}')
         else:
             self.tcp_bind_ip = default_ip
         
-        self.input_topic = self.declare_parameter('input_topic', '/sensing/lidar/top/pointcloud').get_string_value()
-        self.output_topic = self.declare_parameter('output_topic', '/lidar_compressed').get_string_value()
-        self.tcp_port = self.declare_parameter('tcp_port', 50051).get_parameter_value().integer_value
+        self.input_topic = self.get_parameter('input_topic').get_parameter_value().string_value
+        self.output_topic = self.get_parameter('output_topic').get_parameter_value().string_value
+        self.tcp_port = self.get_parameter('tcp_port').get_parameter_value().integer_value
 
         # QoS: 센서 스트림 구독은 보통 Best Effort
         sub_qos = QoSProfile(
@@ -73,7 +79,7 @@ class EncoderServer(Node):
         comp = encode_draco(msg)
 
         bma = ByteMultiArray()
-        bma.data = list(comp)
+        bma.data = [bytes([b]) for b in comp]  # 각 바이트를 bytes 객체로 변환
         self.pub_compressed.publish(bma)
 
         # TCP: 길이 프리픽스 + payload

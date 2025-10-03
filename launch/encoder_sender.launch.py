@@ -30,7 +30,7 @@ def generate_launch_description():
                 'input_topic': input_topic,
                 'output_topic': '/lidar_compressed',
                 'tcp_bind_ip': bind_ip,
-                'tcp_port': int(port.perform(None) or 50051),  # 일부 런처에서 int 캐스팅 이슈 회피용
+                'tcp_port': 50051,
             }]
         ),
     ])

@@ -26,19 +26,27 @@ class DecoderClient(Node):
     def __init__(self):
         super().__init__('draco_decoder_client')
 
-        # 자동으로 로컬 IP 감지 (파라미터가 'auto'면 자동 감지)
-        default_ip = self.declare_parameter('tcp_server_ip', 'auto').get_string_value()
+        # 파라미터 선언
+        self.declare_parameter('tcp_server_ip', 'auto')
+        self.declare_parameter('tcp_server_port', 50051)
+        self.declare_parameter('output_topic', '/sensing/lidar/points_raw')
+        self.declare_parameter('frame_id', 'lidar_link')
+        self.declare_parameter('qos_reliability', 'reliable')
+        self.declare_parameter('qos_depth', 10)
+        
+        # 파라미터 값 가져오기
+        default_ip = self.get_parameter('tcp_server_ip').get_parameter_value().string_value
         if default_ip == 'auto':
             self.tcp_server_ip = get_local_ip()
             self.get_logger().info(f'[Decoder] Auto-detected IP: {self.tcp_server_ip}')
         else:
             self.tcp_server_ip = default_ip
         
-        self.tcp_server_port = self.declare_parameter('tcp_server_port', 50051).get_parameter_value().integer_value
-        self.output_topic = self.declare_parameter('output_topic', '/sensing/lidar/points_raw').get_string_value()
-        self.frame_id = self.declare_parameter('frame_id', 'lidar_link').get_string_value()
-        self.qos_reliability = self.declare_parameter('qos_reliability', 'reliable').get_string_value()
-        self.qos_depth = self.declare_parameter('qos_depth', 10).get_parameter_value().integer_value
+        self.tcp_server_port = self.get_parameter('tcp_server_port').get_parameter_value().integer_value
+        self.output_topic = self.get_parameter('output_topic').get_parameter_value().string_value
+        self.frame_id = self.get_parameter('frame_id').get_parameter_value().string_value
+        self.qos_reliability = self.get_parameter('qos_reliability').get_parameter_value().string_value
+        self.qos_depth = self.get_parameter('qos_depth').get_parameter_value().integer_value
 
         # QoS 설정
         if self.qos_reliability == 'reliable':

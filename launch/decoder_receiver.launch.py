@@ -25,7 +25,7 @@ def generate_launch_description():
             output='screen',
             parameters=[{
                 'tcp_server_ip': host,
-                'tcp_server_port': int(port.perform(None) or 50051),
+                'tcp_server_port': 50051,
                 'output_topic': out_topic,
                 'frame_id': frame_id,
                 'qos_reliability': reliability,
