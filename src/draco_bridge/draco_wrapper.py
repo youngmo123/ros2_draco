@@ -128,8 +128,10 @@ def decode_pointcloud_with_draco(compressed_data):
         # 해제된 PLY 파일 읽기
         points = []
         try:
+            print(f"[DEBUG] Reading PLY file: {output_file}")
             with open(output_file, 'r', encoding='utf-8', errors='ignore') as f:
                 lines = f.readlines()
+                print(f"[DEBUG] PLY file has {len(lines)} lines")
                 
                 # 헤더 건너뛰기
                 vertex_count = 0
@@ -137,9 +139,12 @@ def decode_pointcloud_with_draco(compressed_data):
                 for i, line in enumerate(lines):
                     if line.startswith("element vertex"):
                         vertex_count = int(line.split()[-1])
+                        print(f"[DEBUG] Found {vertex_count} vertices")
                     elif line.strip() == "end_header":
                         header_end = i + 1
                         break
+                
+                print(f"[DEBUG] Header ends at line {header_end}, reading {vertex_count} points")
                 
                 # 포인트 데이터 읽기
                 for i in range(header_end, header_end + vertex_count):
@@ -150,11 +155,14 @@ def decode_pointcloud_with_draco(compressed_data):
                                 x, y, z = float(coords[0]), float(coords[1]), float(coords[2])
                                 intensity = float(coords[3]) if len(coords) > 3 else 0.0
                                 points.append([x, y, z, intensity])
-                        except (ValueError, IndexError):
-                            # 잘못된 데이터 라인은 건너뛰기
+                        except (ValueError, IndexError) as e:
+                            print(f"[DEBUG] Error parsing line {i}: {e}")
                             continue
+                
+                print(f"[DEBUG] Successfully read {len(points)} points")
+                
         except Exception as e:
-            print(f"Error reading PLY file: {e}")
+            print(f"[DEBUG] Error reading PLY file: {e}")
             return None
         
         # 임시 파일 삭제
