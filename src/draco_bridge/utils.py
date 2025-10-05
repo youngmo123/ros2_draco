@@ -34,16 +34,25 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
     """
     Draco 압축된 데이터를 PointCloud2로 해제 (현재는 zlib fallback 사용)
     """
+    print(f"[DEBUG] decode_draco called with {len(buf)} bytes")
+    
     try:
         # 헤더 분리
         header_size = 12
+        if len(buf) < header_size:
+            print(f"[DEBUG] Buffer too small: {len(buf)} < {header_size}")
+            return template
+            
         width, height, point_step = struct.unpack('<III', buf[:header_size])
         compressed_data = buf[header_size:]
+        print(f"[DEBUG] Header: width={width}, height={height}, point_step={point_step}")
+        print(f"[DEBUG] Compressed data size: {len(compressed_data)}")
         
         # Draco로 해제 시도
         points = decode_pointcloud_with_draco(compressed_data)
         
-        if points is not None:
+        if points is not None and len(points) > 0:
+            print(f"[DEBUG] Draco decompression successful: {len(points)} points")
             # Draco 해제 성공
             msg = PointCloud2()
             msg.header.frame_id = template.header.frame_id
@@ -58,23 +67,39 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
             
             # numpy 배열을 bytes로 변환
             msg.data = points.tobytes()
+            print(f"[DEBUG] Converted to {len(msg.data)} bytes")
             return msg
+        else:
+            print(f"[DEBUG] Draco decompression failed or empty result")
             
     except Exception as e:
         print(f"Draco decoding error: {e}")
     
     # Draco 해제 실패 시 zlib으로 fallback
+    print(f"[DEBUG] Falling back to zlib decompression")
     import zlib
-    header_size = 12
-    width, height, point_step = struct.unpack('<III', buf[:header_size])
-    compressed_data = buf[header_size:]
     
     try:
+        header_size = 12
+        width, height, point_step = struct.unpack('<III', buf[:header_size])
+        compressed_data = buf[header_size:]
+        
+        print(f"[DEBUG] Zlib fallback: width={width}, height={height}, point_step={point_step}")
+        print(f"[DEBUG] Zlib compressed data size: {len(compressed_data)}")
+        
         raw = zlib.decompress(compressed_data)
-    except zlib.error:
+        print(f"[DEBUG] Zlib decompression successful: {len(raw)} bytes")
+        
+    except zlib.error as e:
+        print(f"[DEBUG] Zlib decompression failed: {e}")
         # zlib 압축이 아닌 경우 원본 데이터로 처리
         raw = compressed_data
+        print(f"[DEBUG] Using raw compressed data: {len(raw)} bytes")
+    except Exception as e:
+        print(f"[DEBUG] Fallback error: {e}")
+        raw = compressed_data
     
+    # 최종 메시지 생성
     msg = PointCloud2()
     msg.header.frame_id = template.header.frame_id
     msg.header.stamp = template.header.stamp
@@ -86,6 +111,7 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
     msg.is_dense = template.is_dense
     msg.fields = template.fields
     msg.data = raw
+    print(f"[DEBUG] Final message data size: {len(msg.data)} bytes")
     return msg
 
 def pointcloud2_to_numpy(pc2: PointCloud2) -> np.ndarray:
