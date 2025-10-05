@@ -45,7 +45,7 @@ def encode_pointcloud_with_draco(points_array):
         import subprocess
         
         # PLY 형식으로 포인트 클라우드 저장
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.ply', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.ply', delete=False, encoding='utf-8') as f:
             f.write("ply\n")
             f.write("format ascii 1.0\n")
             f.write(f"element vertex {len(points_array)}\n")
@@ -58,9 +58,9 @@ def encode_pointcloud_with_draco(points_array):
             
             for point in points_array:
                 if points_array.shape[1] > 3:
-                    f.write(f"{point[0]} {point[1]} {point[2]} {point[3]}\n")
+                    f.write(f"{point[0]:.6f} {point[1]:.6f} {point[2]:.6f} {point[3]:.6f}\n")
                 else:
-                    f.write(f"{point[0]} {point[1]} {point[2]}\n")
+                    f.write(f"{point[0]:.6f} {point[1]:.6f} {point[2]:.6f}\n")
             
             input_file = f.name
         
@@ -70,9 +70,14 @@ def encode_pointcloud_with_draco(points_array):
         
         # draco_encoder 실행
         encoder_path = os.path.expanduser("~/draco/build/draco_encoder")
-        cmd = [encoder_path, "-i", input_file, "-o", output_file, "-qp", "14"]
+        cmd = [encoder_path, "-i", input_file, "-o", output_file, "-qp", "14", "-cl", "10"]
         
         result = subprocess.run(cmd, capture_output=True, text=True)
+        print(f"[DEBUG] Draco encoder command: {' '.join(cmd)}")
+        print(f"[DEBUG] Draco encoder stdout: {result.stdout}")
+        print(f"[DEBUG] Draco encoder stderr: {result.stderr}")
+        print(f"[DEBUG] Draco encoder return code: {result.returncode}")
+        
         if result.returncode != 0:
             raise Exception(f"Draco encoding failed: {result.stderr}")
         
@@ -112,6 +117,11 @@ def decode_pointcloud_with_draco(compressed_data):
         cmd = [decoder_path, "-i", input_file, "-o", output_file]
         
         result = subprocess.run(cmd, capture_output=True, text=True)
+        print(f"[DEBUG] Draco decoder command: {' '.join(cmd)}")
+        print(f"[DEBUG] Draco decoder stdout: {result.stdout}")
+        print(f"[DEBUG] Draco decoder stderr: {result.stderr}")
+        print(f"[DEBUG] Draco decoder return code: {result.returncode}")
+        
         if result.returncode != 0:
             raise Exception(f"Draco decoding failed: {result.stderr}")
         
