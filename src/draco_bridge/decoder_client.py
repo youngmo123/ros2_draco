@@ -246,24 +246,36 @@ class DecoderClient(Node):
         """주기적으로 상태를 Flask 모니터에 보고"""
         last_reported_status = None
         report_count = 0
+        consecutive_failures = 0
+        
         while self.running:
             try:
                 current_status = "connected" if self.connected else "disconnected"
                 
-                # 상태가 변경되었거나 20초마다 보고 (더 안정적으로)
-                if current_status != last_reported_status or report_count % 4 == 0:
+                # 상태가 변경되었거나 30초마다 보고 (더 안정적으로)
+                should_report = (current_status != last_reported_status or report_count % 6 == 0)
+                
+                if should_report:
                     success = self.send_status_to_monitor(current_status)
                     if success:
                         last_reported_status = current_status
+                        consecutive_failures = 0
                         self.get_logger().info(f'Status reported: {current_status}')
                     else:
-                        self.get_logger().warn(f'Failed to report status: {current_status}')
+                        consecutive_failures += 1
+                        self.get_logger().warn(f'Failed to report status: {current_status} (failures: {consecutive_failures})')
+                        
+                        # 연속 실패가 3회 이상이면 잠시 대기
+                        if consecutive_failures >= 3:
+                            self.get_logger().warn(f'Too many failures, waiting 30 seconds...')
+                            time.sleep(30)
+                            consecutive_failures = 0
                 
                 report_count += 1
                 time.sleep(5)  # 5초마다 상태 확인
             except Exception as e:
                 self.get_logger().warn(f'Status report error: {e}')
-                time.sleep(5)
+                time.sleep(10)
 
     def send_status_to_monitor(self, status):
         """디코더 상태를 Flask 모니터에 전송"""
