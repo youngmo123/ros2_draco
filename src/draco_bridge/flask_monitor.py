@@ -47,6 +47,14 @@ class DracoMonitor:
             if result == 0:
                 self.encoder_status = "connected"
             else:
+                # 프로세스로도 확인
+                for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                    try:
+                        if 'encoder_server' in ' '.join(proc.info['cmdline'] or []):
+                            self.encoder_status = "connected"
+                            return
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
                 self.encoder_status = "disconnected"
         except Exception:
             self.encoder_status = "disconnected"
@@ -57,7 +65,8 @@ class DracoMonitor:
             # 디코더 프로세스가 실행 중인지 확인
             for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
                 try:
-                    if 'decoder_client' in ' '.join(proc.info['cmdline'] or []):
+                    cmdline = ' '.join(proc.info['cmdline'] or [])
+                    if 'decoder_client' in cmdline or 'decoder_receiver' in cmdline:
                         self.decoder_status = "connected"
                         return
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
