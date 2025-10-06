@@ -3,7 +3,7 @@
   <name>draco_bridge</name>
   <version>0.0.1</version>
   <description>PointCloud2 TCP bridge with Draco (skeleton)</description>
-  <maintainer email="you@example.com">youngmo</maintainer>
+  <maintainer email="youngmo123@hanmail.net">youngmo</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_python</buildtool_depend>
