@@ -112,7 +112,13 @@ class DecoderClient(Node):
         self.connected = False
         self.running = True
         self.template_msg = None  # 첫 번째 메시지를 템플릿으로 사용
-        self.monitor_url = "http://192.168.0.16:5000/api/decoder_status"  # 송신 PC의 IP 주소
+        # 모니터 URL 설정 - 여러 IP 시도
+        self.monitor_urls = [
+            "http://192.168.0.16:5000/api/decoder_status",  # 송신 PC IP
+            "http://localhost:5000/api/decoder_status",      # 로컬호스트
+            "http://127.0.0.1:5000/api/decoder_status"      # 로컬호스트 대체
+        ]
+        self.monitor_url = self.monitor_urls[0]  # 기본값
 
         threading.Thread(target=self.connect_and_receive_loop, daemon=True).start()
         threading.Thread(target=self.status_report_loop, daemon=True).start()
@@ -249,17 +255,24 @@ class DecoderClient(Node):
 
     def send_status_to_monitor(self, status):
         """디코더 상태를 Flask 모니터에 전송"""
-        try:
-            data = {
-                'decoder_status': status,
-                'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
-            }
-            requests.post(self.monitor_url, json=data, timeout=1)
-            self.get_logger().debug(f'Status sent to monitor: {status}')
-        except Exception as e:
-            # 모니터 서버가 실행되지 않아도 디코더는 정상 작동
-            self.get_logger().debug(f'Monitor report failed: {e}')
-            pass
+        data = {
+            'decoder_status': status,
+            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
+        }
+        
+        # 여러 URL 시도
+        for url in self.monitor_urls:
+            try:
+                response = requests.post(url, json=data, timeout=2)
+                if response.status_code == 200:
+                    self.get_logger().debug(f'Status sent to monitor ({url}): {status}')
+                    return True
+            except Exception as e:
+                self.get_logger().debug(f'Monitor report failed ({url}): {e}')
+                continue
+        
+        self.get_logger().warn(f'All monitor URLs failed for status: {status}')
+        return False
 
     def destroy_node(self):
         """노드 종료 시 정리"""

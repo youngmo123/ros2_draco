@@ -206,6 +206,9 @@ def api_decoder_status():
     try:
         data = request.get_json()
         decoder_status = data.get('decoder_status', 'disconnected')
+        timestamp = data.get('timestamp', 'unknown')
+        
+        print(f"[MONITOR] Received decoder status: {decoder_status} at {timestamp}")
         
         monitor.decoder_status = decoder_status
         monitor.last_decoder_report = time.time()  # 마지막 보고 시간 기록
@@ -215,6 +218,7 @@ def api_decoder_status():
         
         return jsonify({'status': 'success'})
     except Exception as e:
+        print(f"[MONITOR] Error processing decoder status: {e}")
         return jsonify({'status': 'error', 'message': str(e)})
 
 @socketio.on('connect')
