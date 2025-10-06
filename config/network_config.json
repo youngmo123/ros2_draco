@@ -1,0 +1,11 @@
+{
+  "target_ip": "192.168.0.1",
+  "last_updated": "2025-10-06 18:35:00",
+  "description": "Bandwidth monitor target IP configuration - automatically detected gateway",
+  "network_info": {
+    "local_ip": "192.168.0.16",
+    "subnet": "192.168.0.0/24",
+    "gateway": "192.168.0.1",
+    "detection_method": "auto_discovery"
+  }
+}

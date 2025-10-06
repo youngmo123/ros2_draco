@@ -10,12 +10,25 @@ import threading
 import json
 import struct
 import psutil
+import subprocess
+import platform
 from datetime import datetime
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, List
 
 class BandwidthMonitor:
-    def __init__(self, target_ip: str = "192.168.0.16", target_port: int = 5001):
-        self.target_ip = target_ip
+    def __init__(self, target_ip: str = None, target_port: int = 5001):
+        # 설정 파일에서 IP 읽기 시도
+        config_ip = self._load_config_ip()
+        
+        # 동적으로 네트워크 설정 감지
+        if target_ip is not None:
+            self.target_ip = target_ip
+        elif config_ip is not None:
+            self.target_ip = config_ip
+            print(f"[BandwidthMonitor] Using IP from config: {self.target_ip}")
+        else:
+            self.target_ip = self._detect_network_config()
+        
         self.target_port = target_port
         self.running = False
         self.test_duration = 10  # 10초 테스트
@@ -36,12 +49,209 @@ class BandwidthMonitor:
         # 네트워크 인터페이스 모니터링
         self.interface_stats = {}
         self.last_interface_check = None
+    
+    def _load_config_ip(self) -> Optional[str]:
+        """설정 파일에서 IP 주소 읽기"""
+        config_files = [
+            '/home/youngmo/ros2_draco/config/network_config.json',
+            '/home/youngmo/ros2_draco/network_config.json',
+            './network_config.json'
+        ]
+        
+        for config_file in config_files:
+            try:
+                import os
+                if os.path.exists(config_file):
+                    with open(config_file, 'r') as f:
+                        config = json.load(f)
+                        target_ip = config.get('target_ip')
+                        if target_ip:
+                            print(f"[BandwidthMonitor] Loaded IP from {config_file}: {target_ip}")
+                            return target_ip
+            except Exception as e:
+                print(f"[BandwidthMonitor] Error reading config {config_file}: {e}")
+                continue
+        
+        return None
+    
+    def save_config_ip(self, ip: str) -> bool:
+        """설정 파일에 IP 주소 저장"""
+        try:
+            import os
+            config_dir = '/home/youngmo/ros2_draco/config'
+            os.makedirs(config_dir, exist_ok=True)
+            
+            config_file = os.path.join(config_dir, 'network_config.json')
+            config = {
+                'target_ip': ip,
+                'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'description': 'Bandwidth monitor target IP configuration'
+            }
+            
+            with open(config_file, 'w') as f:
+                json.dump(config, f, indent=2)
+            
+            print(f"[BandwidthMonitor] Saved IP configuration to {config_file}")
+            return True
+            
+        except Exception as e:
+            print(f"[BandwidthMonitor] Error saving config: {e}")
+            return False
+    
+    def _detect_network_config(self) -> str:
+        """네트워크 환경을 자동으로 감지하여 적절한 IP 주소 반환"""
+        try:
+            # 1. 현재 시스템의 네트워크 인터페이스 정보 가져오기
+            local_ips = self._get_local_ips()
+            print(f"[BandwidthMonitor] Detected local IPs: {local_ips}")
+            
+            # 2. 일반적인 로컬 네트워크 대역 확인
+            target_candidates = self._find_target_candidates(local_ips)
+            print(f"[BandwidthMonitor] Target candidates: {target_candidates}")
+            
+            # 3. 가장 적합한 타겟 IP 선택
+            best_target = self._select_best_target(target_candidates)
+            print(f"[BandwidthMonitor] Selected target: {best_target}")
+            
+            return best_target
+            
+        except Exception as e:
+            print(f"[BandwidthMonitor] Network detection failed: {e}")
+            # 폴백: 기본값 사용
+            return "192.168.0.16"
+    
+    def _get_local_ips(self) -> List[str]:
+        """시스템의 로컬 IP 주소들 가져오기"""
+        local_ips = []
+        
+        try:
+            # psutil을 사용한 네트워크 인터페이스 정보
+            net_if_addrs = psutil.net_if_addrs()
+            for interface_name, interface_addresses in net_if_addrs.items():
+                for address in interface_addresses:
+                    if address.family == socket.AF_INET:  # IPv4만
+                        ip = address.address
+                        # 로컬 네트워크 IP만 필터링
+                        if (not ip.startswith('127.') and 
+                            not ip.startswith('169.254.') and  # APIPA 제외
+                            not ip.startswith('0.')):
+                            local_ips.append(ip)
+        except Exception as e:
+            print(f"[BandwidthMonitor] Error getting local IPs: {e}")
+        
+        return local_ips
+    
+    def _find_target_candidates(self, local_ips: List[str]) -> List[str]:
+        """로컬 IP를 기반으로 타겟 후보들 생성"""
+        candidates = []
+        
+        for local_ip in local_ips:
+            # IP 주소 분해
+            parts = local_ip.split('.')
+            if len(parts) == 4:
+                base_network = '.'.join(parts[:3])
+                
+                # 같은 서브넷의 다른 IP들 생성
+                for i in range(1, 255):
+                    if f"{base_network}.{i}" != local_ip:  # 자신 제외
+                        candidates.append(f"{base_network}.{i}")
+        
+        # 일반적인 게이트웨이 주소들 추가
+        for ip in local_ips:
+            parts = ip.split('.')
+            if len(parts) == 4:
+                base_network = '.'.join(parts[:3])
+                # 일반적인 게이트웨이 주소들
+                gateway_candidates = [
+                    f"{base_network}.1",
+                    f"{base_network}.254",
+                    f"{base_network}.100"
+                ]
+                candidates.extend(gateway_candidates)
+        
+        return list(set(candidates))  # 중복 제거
+    
+    def _select_best_target(self, candidates: List[str]) -> str:
+        """가장 적합한 타겟 IP 선택"""
+        if not candidates:
+            return "192.168.0.16"  # 기본값
+        
+        # 우선순위 기반 선택
+        priority_ips = []
+        
+        # 1. 일반적인 게이트웨이/라우터 주소 우선
+        for ip in candidates:
+            if (ip.endswith('.1') or ip.endswith('.254') or 
+                ip.endswith('.100') or ip.endswith('.200')):
+                priority_ips.append(ip)
+        
+        # 2. 우선순위 IP가 있으면 그 중에서 선택
+        if priority_ips:
+            return priority_ips[0]
+        
+        # 3. 그 외에는 첫 번째 후보 선택
+        return candidates[0]
+    
+    def _test_connectivity(self, ip: str, port: int, timeout: int = 2) -> bool:
+        """특정 IP:포트에 연결 가능한지 테스트"""
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(timeout)
+            result = sock.connect_ex((ip, port))
+            sock.close()
+            return result == 0
+        except Exception:
+            return False
+    
+    def auto_discover_target(self) -> Optional[str]:
+        """자동으로 대역폭 테스트 가능한 타겟 찾기"""
+        try:
+            # 1. 로컬 IP들 가져오기
+            local_ips = self._get_local_ips()
+            
+            # 2. 각 로컬 IP의 서브넷에서 연결 가능한 호스트 찾기
+            for local_ip in local_ips:
+                parts = local_ip.split('.')
+                if len(parts) == 4:
+                    base_network = '.'.join(parts[:3])
+                    
+                    # 일반적인 테스트 포트들
+                    test_ports = [5001, 8080, 80, 443, 22, 21]
+                    
+                    # 서브넷의 일반적인 주소들 테스트
+                    test_ips = [
+                        f"{base_network}.1",    # 게이트웨이
+                        f"{base_network}.2",
+                        f"{base_network}.100",
+                        f"{base_network}.200",
+                        f"{base_network}.254"   # 게이트웨이
+                    ]
+                    
+                    for test_ip in test_ips:
+                        for port in test_ports:
+                            if self._test_connectivity(test_ip, port, timeout=1):
+                                print(f"[BandwidthMonitor] Found reachable target: {test_ip}:{port}")
+                                return test_ip
+            
+            return None
+            
+        except Exception as e:
+            print(f"[BandwidthMonitor] Auto-discovery failed: {e}")
+            return None
         
     def start_monitoring(self):
         """대역폭 모니터링 시작"""
         self.running = True
         print(f"[BandwidthMonitor] Starting bandwidth monitoring...")
-        print(f"[BandwidthMonitor] Target: {self.target_ip}:{self.target_port}")
+        print(f"[BandwidthMonitor] Initial target: {self.target_ip}:{self.target_port}")
+        
+        # 자동 타겟 발견 시도
+        discovered_target = self.auto_discover_target()
+        if discovered_target and discovered_target != self.target_ip:
+            print(f"[BandwidthMonitor] Auto-discovered better target: {discovered_target}")
+            self.target_ip = discovered_target
+        
+        print(f"[BandwidthMonitor] Final target: {self.target_ip}:{self.target_port}")
         
         # 백그라운드 스레드에서 주기적 측정
         self.monitor_thread = threading.Thread(target=self._monitoring_loop, daemon=True)
@@ -251,10 +461,28 @@ class BandwidthMonitor:
 
 # 테스트용 실행 코드
 if __name__ == "__main__":
-    monitor = BandwidthMonitor()
+    import sys
+    
+    # 명령행 인수 처리
+    target_ip = None
+    if len(sys.argv) > 1:
+        target_ip = sys.argv[1]
+        print(f"[BandwidthMonitor] Using command line IP: {target_ip}")
+    
+    monitor = BandwidthMonitor(target_ip=target_ip)
     
     try:
         monitor.start_monitoring()
+        
+        print("\n=== 네트워크 설정 정보 ===")
+        print(f"Target IP: {monitor.target_ip}")
+        print(f"Target Port: {monitor.target_port}")
+        print(f"Local IPs: {monitor._get_local_ips()}")
+        
+        # 설정 저장 옵션
+        save_config = input("\n현재 설정을 저장하시겠습니까? (y/n): ").lower().strip()
+        if save_config == 'y':
+            monitor.save_config_ip(monitor.target_ip)
         
         # 5분간 모니터링
         for i in range(30):  # 30 * 10초 = 5분
