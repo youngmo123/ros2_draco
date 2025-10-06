@@ -3,6 +3,7 @@ import socket
 import struct
 import threading
 import time
+import requests
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
@@ -111,6 +112,7 @@ class DecoderClient(Node):
         self.connected = False
         self.running = True
         self.template_msg = None  # 첫 번째 메시지를 템플릿으로 사용
+        self.monitor_url = "http://192.168.0.16:5000/api/decoder_status"  # 송신 PC의 IP 주소
 
         threading.Thread(target=self.connect_and_receive_loop, daemon=True).start()
 
@@ -142,12 +144,18 @@ class DecoderClient(Node):
             self.connected = True
             self.get_logger().info(f'[Decoder] Connected to server {self.tcp_server_ip}:{self.tcp_server_port}')
             
+            # 연결 성공 시 모니터에 상태 보고
+            self.send_status_to_monitor("connected")
+            
         except Exception as e:
             self.get_logger().error(f'[Decoder] Failed to connect to server: {e}')
             self.connected = False
             if self.sock:
                 self.sock.close()
                 self.sock = None
+            
+            # 연결 실패 시 모니터에 상태 보고
+            self.send_status_to_monitor("disconnected")
 
     def receive_data(self):
         try:
@@ -217,10 +225,25 @@ class DecoderClient(Node):
         except Exception as e:
             self.get_logger().error(f'[Decoder] Error processing received data: {e}')
 
+    def send_status_to_monitor(self, status):
+        """디코더 상태를 Flask 모니터에 전송"""
+        try:
+            data = {
+                'decoder_status': status,
+                'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
+            }
+            requests.post(self.monitor_url, json=data, timeout=1)
+        except Exception as e:
+            # 모니터 서버가 실행되지 않아도 디코더는 정상 작동
+            pass
+
     def destroy_node(self):
         """노드 종료 시 정리"""
         self.running = False
         self.connected = False
+        
+        # 종료 시 모니터에 상태 보고
+        self.send_status_to_monitor("disconnected")
         
         if self.sock:
             self.sock.close()

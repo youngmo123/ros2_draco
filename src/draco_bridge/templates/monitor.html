@@ -197,6 +197,14 @@
                     <span>활성 연결 수:</span>
                     <span id="connection-count">0</span>
                 </div>
+                <div class="status-item">
+                    <span>송신 대역폭:</span>
+                    <span id="bandwidth-sent">0 B/s</span>
+                </div>
+                <div class="status-item">
+                    <span>수신 대역폭:</span>
+                    <span id="bandwidth-recv">0 B/s</span>
+                </div>
             </div>
             
             <!-- 압축 정보 카드 -->
@@ -281,6 +289,10 @@
             
             // 연결 수 업데이트
             document.getElementById('connection-count').textContent = data.connection_count;
+            
+            // 네트워크 대역폭 업데이트
+            document.getElementById('bandwidth-sent').textContent = formatBytes(data.network_bandwidth.bytes_sent_per_sec) + '/s';
+            document.getElementById('bandwidth-recv').textContent = formatBytes(data.network_bandwidth.bytes_recv_per_sec) + '/s';
             
             // 압축 통계 업데이트
             document.getElementById('original-size').textContent = formatBytes(data.compression_stats.original_size);

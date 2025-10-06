@@ -27,6 +27,13 @@ class DracoMonitor:
         self.network_status = "disconnected"
         self.connection_count = 0
         self.is_monitoring = True
+        self.network_bandwidth = {
+            'bytes_sent_per_sec': 0,
+            'bytes_recv_per_sec': 0,
+            'total_bytes_sent': 0,
+            'total_bytes_recv': 0
+        }
+        self.last_net_io = None
         
     def check_encoder_status(self):
         """인코더 서버 상태 확인"""
@@ -60,7 +67,7 @@ class DracoMonitor:
             self.decoder_status = "disconnected"
     
     def check_network_status(self):
-        """네트워크 연결 상태 확인"""
+        """네트워크 연결 상태 및 대역폭 확인"""
         try:
             # TCP 연결 수 확인
             connections = psutil.net_connections(kind='tcp')
@@ -71,6 +78,25 @@ class DracoMonitor:
                 self.network_status = "connected"
             else:
                 self.network_status = "disconnected"
+            
+            # 네트워크 대역폭 계산
+            current_net_io = psutil.net_io_counters()
+            
+            if self.last_net_io is not None:
+                # 2초 간격으로 대역폭 계산
+                time_diff = 2.0  # monitoring_loop에서 2초마다 호출
+                bytes_sent_diff = current_net_io.bytes_sent - self.last_net_io.bytes_sent
+                bytes_recv_diff = current_net_io.bytes_recv - self.last_net_io.bytes_recv
+                
+                self.network_bandwidth = {
+                    'bytes_sent_per_sec': bytes_sent_diff / time_diff,
+                    'bytes_recv_per_sec': bytes_recv_diff / time_diff,
+                    'total_bytes_sent': current_net_io.bytes_sent,
+                    'total_bytes_recv': current_net_io.bytes_recv
+                }
+            
+            self.last_net_io = current_net_io
+            
         except Exception:
             self.network_status = "disconnected"
     
@@ -119,6 +145,7 @@ class DracoMonitor:
             'network_status': self.network_status,
             'connection_count': self.connection_count,
             'compression_stats': self.compression_stats,
+            'network_bandwidth': self.network_bandwidth,
             'system_info': self.get_system_info(),
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
@@ -145,6 +172,22 @@ def api_compression_stats():
         compressed_size = data.get('compressed_size', 0)
         
         monitor.update_compression_stats(original_size, compressed_size)
+        
+        # 실시간 업데이트 전송
+        socketio.emit('status_update', monitor.get_status_data())
+        
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
+@app.route('/api/decoder_status', methods=['POST'])
+def api_decoder_status():
+    """디코더 상태 수신 API"""
+    try:
+        data = request.get_json()
+        decoder_status = data.get('decoder_status', 'disconnected')
+        
+        monitor.decoder_status = decoder_status
         
         # 실시간 업데이트 전송
         socketio.emit('status_update', monitor.get_status_data())
