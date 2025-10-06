@@ -34,6 +34,7 @@ class DracoMonitor:
             'total_bytes_recv': 0
         }
         self.last_net_io = None
+        self.last_decoder_report = None  # 마지막 디코더 상태 보고 시간
         
     def check_encoder_status(self):
         """인코더 서버 상태 확인"""
@@ -62,12 +63,22 @@ class DracoMonitor:
     def check_decoder_status(self):
         """디코더 클라이언트 상태 확인"""
         try:
+            # 마지막 보고 시간이 10초 이상 지났으면 disconnected로 처리
+            if self.last_decoder_report and (time.time() - self.last_decoder_report) > 10:
+                if self.decoder_status == "connected":
+                    self.decoder_status = "disconnected"
+                    print(f"Decoder timeout - marking as disconnected")
+                return
+            
             # 디코더 프로세스가 실행 중인지 확인
             for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
                 try:
                     cmdline = ' '.join(proc.info['cmdline'] or [])
                     if 'decoder_client' in cmdline or 'decoder_receiver' in cmdline:
-                        self.decoder_status = "connected"
+                        # 프로세스는 있지만 최근 보고가 없으면 연결 불안정으로 처리
+                        if not self.last_decoder_report or (time.time() - self.last_decoder_report) > 5:
+                            if self.decoder_status == "connected":
+                                self.decoder_status = "disconnected"
                         return
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
@@ -197,6 +208,7 @@ def api_decoder_status():
         decoder_status = data.get('decoder_status', 'disconnected')
         
         monitor.decoder_status = decoder_status
+        monitor.last_decoder_report = time.time()  # 마지막 보고 시간 기록
         
         # 실시간 업데이트 전송
         socketio.emit('status_update', monitor.get_status_data())

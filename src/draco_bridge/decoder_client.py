@@ -130,12 +130,15 @@ class DecoderClient(Node):
                 self.get_logger().error(f'Connection error: {e}')
                 self.connected = False
                 if self.sock:
-                    self.sock.close()
+                    try:
+                        self.sock.close()
+                    except:
+                        pass
                     self.sock = None
                 
                 if self.running:
-                    self.get_logger().info(f'Reconnecting in 5 seconds...')
-                    time.sleep(5)
+                    self.get_logger().info(f'Reconnecting in 3 seconds...')
+                    time.sleep(3)
 
     def connect_to_server(self):
         try:
@@ -228,16 +231,21 @@ class DecoderClient(Node):
 
     def status_report_loop(self):
         """주기적으로 상태를 Flask 모니터에 보고"""
+        last_reported_status = None
         while self.running:
             try:
-                if self.connected:
-                    self.send_status_to_monitor("connected")
-                else:
-                    self.send_status_to_monitor("disconnected")
-                time.sleep(5)  # 5초마다 상태 보고
+                current_status = "connected" if self.connected else "disconnected"
+                
+                # 상태가 변경되었거나 10초마다 보고
+                if current_status != last_reported_status:
+                    self.send_status_to_monitor(current_status)
+                    last_reported_status = current_status
+                    self.get_logger().info(f'Status reported: {current_status}')
+                
+                time.sleep(2)  # 2초마다 상태 확인
             except Exception as e:
                 self.get_logger().warn(f'Status report error: {e}')
-                time.sleep(10)
+                time.sleep(5)
 
     def send_status_to_monitor(self, status):
         """디코더 상태를 Flask 모니터에 전송"""
