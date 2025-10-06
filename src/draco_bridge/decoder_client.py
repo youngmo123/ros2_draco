@@ -115,6 +115,7 @@ class DecoderClient(Node):
         self.monitor_url = "http://192.168.0.16:5000/api/decoder_status"  # 송신 PC의 IP 주소
 
         threading.Thread(target=self.connect_and_receive_loop, daemon=True).start()
+        threading.Thread(target=self.status_report_loop, daemon=True).start()
 
     def connect_and_receive_loop(self):
         while self.running:
@@ -225,6 +226,19 @@ class DecoderClient(Node):
         except Exception as e:
             self.get_logger().error(f'[Decoder] Error processing received data: {e}')
 
+    def status_report_loop(self):
+        """주기적으로 상태를 Flask 모니터에 보고"""
+        while self.running:
+            try:
+                if self.connected:
+                    self.send_status_to_monitor("connected")
+                else:
+                    self.send_status_to_monitor("disconnected")
+                time.sleep(5)  # 5초마다 상태 보고
+            except Exception as e:
+                self.get_logger().warn(f'Status report error: {e}')
+                time.sleep(10)
+
     def send_status_to_monitor(self, status):
         """디코더 상태를 Flask 모니터에 전송"""
         try:
@@ -233,8 +247,10 @@ class DecoderClient(Node):
                 'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
             }
             requests.post(self.monitor_url, json=data, timeout=1)
+            self.get_logger().debug(f'Status sent to monitor: {status}')
         except Exception as e:
             # 모니터 서버가 실행되지 않아도 디코더는 정상 작동
+            self.get_logger().debug(f'Monitor report failed: {e}')
             pass
 
     def destroy_node(self):
