@@ -1,6 +1,7 @@
 # src/draco_bridge/encoder_server.py
 import socket
 import threading
+import requests
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
@@ -66,6 +67,7 @@ class EncoderServer(Node):
         self.get_logger().info(f'[Encoder] TCP Server listening on {self.tcp_bind_ip}:{self.tcp_port}')
 
         self.client_conn = None
+        self.monitor_url = "http://localhost:5000/api/compression_stats"
         threading.Thread(target=self.accept_thread, daemon=True).start()
 
     def accept_thread(self):
@@ -76,7 +78,12 @@ class EncoderServer(Node):
 
     def cb_cloud(self, msg: PointCloud2):
         # Draco 압축 → ByteMultiArray 발행 + TCP 전송
+        original_size = len(msg.data)
         comp = encode_draco(msg)
+        compressed_size = len(comp)
+
+        # 압축 통계를 Flask 모니터에 전송
+        self.send_compression_stats(original_size, compressed_size)
 
         bma = ByteMultiArray()
         bma.data = [bytes([b]) for b in comp]  # 각 바이트를 bytes 객체로 변환
@@ -90,6 +97,18 @@ class EncoderServer(Node):
             except Exception as e:
                 self.get_logger().warn(f'[Encoder] send failed: {e}')
                 self.client_conn = None
+
+    def send_compression_stats(self, original_size, compressed_size):
+        """압축 통계를 Flask 모니터에 전송"""
+        try:
+            data = {
+                'original_size': original_size,
+                'compressed_size': compressed_size
+            }
+            requests.post(self.monitor_url, json=data, timeout=1)
+        except Exception as e:
+            # 모니터 서버가 실행되지 않아도 인코더는 정상 작동
+            pass
 
 def main():
     rclpy.init()
