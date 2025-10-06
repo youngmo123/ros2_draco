@@ -250,8 +250,8 @@ class DecoderClient(Node):
             try:
                 current_status = "connected" if self.connected else "disconnected"
                 
-                # 상태가 변경되었거나 10초마다 보고
-                if current_status != last_reported_status or report_count % 10 == 0:
+                # 상태가 변경되었거나 20초마다 보고 (더 안정적으로)
+                if current_status != last_reported_status or report_count % 4 == 0:
                     success = self.send_status_to_monitor(current_status)
                     if success:
                         last_reported_status = current_status
@@ -260,7 +260,7 @@ class DecoderClient(Node):
                         self.get_logger().warn(f'Failed to report status: {current_status}')
                 
                 report_count += 1
-                time.sleep(1)  # 1초마다 상태 확인 (더 자주)
+                time.sleep(5)  # 5초마다 상태 확인
             except Exception as e:
                 self.get_logger().warn(f'Status report error: {e}')
                 time.sleep(5)

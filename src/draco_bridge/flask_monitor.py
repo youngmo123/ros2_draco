@@ -63,11 +63,11 @@ class DracoMonitor:
     def check_decoder_status(self):
         """디코더 클라이언트 상태 확인"""
         try:
-            # 마지막 보고 시간이 60초 이상 지났으면 disconnected로 처리 (매우 관대하게)
-            if self.last_decoder_report and (time.time() - self.last_decoder_report) > 60:
+            # 마지막 보고 시간이 30초 이상 지났으면 disconnected로 처리
+            if self.last_decoder_report and (time.time() - self.last_decoder_report) > 30:
                 if self.decoder_status == "connected":
                     self.decoder_status = "disconnected"
-                    print(f"Decoder timeout (60s) - marking as disconnected")
+                    print(f"Decoder timeout (30s) - marking as disconnected")
                 return
             
             # 디코더 프로세스가 실행 중인지 확인
@@ -77,17 +77,20 @@ class DracoMonitor:
                     cmdline = ' '.join(proc.info['cmdline'] or [])
                     if 'decoder_client' in cmdline or 'decoder_receiver' in cmdline:
                         decoder_process_found = True
-                        # 프로세스가 있으면 연결된 것으로 간주 (보고가 없어도)
-                        if self.decoder_status == "disconnected":
+                        # 프로세스가 있고 최근에 보고가 있었으면 연결된 것으로 간주
+                        if (self.last_decoder_report and 
+                            (time.time() - self.last_decoder_report) < 15 and
+                            self.decoder_status == "disconnected"):
                             self.decoder_status = "connected"
-                            print(f"Decoder process found - marking as connected")
+                            print(f"Decoder process found with recent report - marking as connected")
                         break
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
             
             # 프로세스가 없으면 disconnected로 설정
-            if not decoder_process_found:
+            if not decoder_process_found and self.decoder_status == "connected":
                 self.decoder_status = "disconnected"
+                print(f"Decoder process not found - marking as disconnected")
                 
         except Exception:
             self.decoder_status = "disconnected"
@@ -250,7 +253,7 @@ def monitoring_loop():
             # WebSocket으로 실시간 업데이트
             socketio.emit('status_update', monitor.get_status_data())
             
-            time.sleep(2)  # 2초마다 업데이트
+            time.sleep(5)  # 5초마다 업데이트
         except Exception as e:
             print(f"Monitoring error: {e}")
             time.sleep(5)
