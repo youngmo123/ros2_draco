@@ -63,27 +63,32 @@ class DracoMonitor:
     def check_decoder_status(self):
         """디코더 클라이언트 상태 확인"""
         try:
-            # 마지막 보고 시간이 30초 이상 지났으면 disconnected로 처리 (더 관대하게)
-            if self.last_decoder_report and (time.time() - self.last_decoder_report) > 30:
+            # 마지막 보고 시간이 60초 이상 지났으면 disconnected로 처리 (매우 관대하게)
+            if self.last_decoder_report and (time.time() - self.last_decoder_report) > 60:
                 if self.decoder_status == "connected":
                     self.decoder_status = "disconnected"
-                    print(f"Decoder timeout (30s) - marking as disconnected")
+                    print(f"Decoder timeout (60s) - marking as disconnected")
                 return
             
             # 디코더 프로세스가 실행 중인지 확인
+            decoder_process_found = False
             for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
                 try:
                     cmdline = ' '.join(proc.info['cmdline'] or [])
                     if 'decoder_client' in cmdline or 'decoder_receiver' in cmdline:
-                        # 프로세스는 있지만 최근 보고가 없으면 연결 불안정으로 처리 (15초로 완화)
-                        if not self.last_decoder_report or (time.time() - self.last_decoder_report) > 15:
-                            if self.decoder_status == "connected":
-                                self.decoder_status = "disconnected"
-                                print(f"Decoder process found but no recent report - marking as disconnected")
-                        return
+                        decoder_process_found = True
+                        # 프로세스가 있으면 연결된 것으로 간주 (보고가 없어도)
+                        if self.decoder_status == "disconnected":
+                            self.decoder_status = "connected"
+                            print(f"Decoder process found - marking as connected")
+                        break
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
-            self.decoder_status = "disconnected"
+            
+            # 프로세스가 없으면 disconnected로 설정
+            if not decoder_process_found:
+                self.decoder_status = "disconnected"
+                
         except Exception:
             self.decoder_status = "disconnected"
     
