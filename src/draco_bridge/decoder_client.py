@@ -149,7 +149,11 @@ class DecoderClient(Node):
     def connect_to_server(self):
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.sock.settimeout(10.0)
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)  # Keep-alive 활성화
+            self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 1)  # 1초 후 keep-alive 시작
+            self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 3)  # 3초 간격
+            self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 5)    # 5번 시도
+            self.sock.settimeout(15.0)  # 타임아웃 증가
             self.sock.connect((self.tcp_server_ip, self.tcp_server_port))
             self.connected = True
             self.get_logger().info(f'[Decoder] Connected to server {self.tcp_server_ip}:{self.tcp_server_port}')
@@ -161,7 +165,10 @@ class DecoderClient(Node):
             self.get_logger().error(f'[Decoder] Failed to connect to server: {e}')
             self.connected = False
             if self.sock:
-                self.sock.close()
+                try:
+                    self.sock.close()
+                except:
+                    pass
                 self.sock = None
             
             # 연결 실패 시 모니터에 상태 보고
@@ -248,7 +255,7 @@ class DecoderClient(Node):
                     last_reported_status = current_status
                     self.get_logger().info(f'Status reported: {current_status}')
                 
-                time.sleep(2)  # 2초마다 상태 확인
+                time.sleep(3)  # 3초마다 상태 확인
             except Exception as e:
                 self.get_logger().warn(f'Status report error: {e}')
                 time.sleep(5)
