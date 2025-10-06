@@ -205,6 +205,30 @@
                     <span>수신 대역폭:</span>
                     <span id="bandwidth-recv">0 B/s</span>
                 </div>
+                <div class="status-item">
+                    <span>전송 속도 (bps):</span>
+                    <span id="upload-bps">0 bps</span>
+                </div>
+                <div class="status-item">
+                    <span>수신 속도 (bps):</span>
+                    <span id="download-bps">0 bps</span>
+                </div>
+                <div class="status-item">
+                    <span>실시간 업로드:</span>
+                    <span id="realtime-upload">0.00 Mbps</span>
+                </div>
+                <div class="status-item">
+                    <span>실시간 다운로드:</span>
+                    <span id="realtime-download">0.00 Mbps</span>
+                </div>
+                <div class="status-item">
+                    <span>테스트 상태:</span>
+                    <span id="test-status">대기 중</span>
+                </div>
+                <div class="status-item">
+                    <span>마지막 테스트:</span>
+                    <span id="last-test-time">-</span>
+                </div>
             </div>
             
             <!-- 압축 정보 카드 -->
@@ -294,6 +318,23 @@
             document.getElementById('bandwidth-sent').textContent = formatBytes(data.network_bandwidth.bytes_sent_per_sec) + '/s';
             document.getElementById('bandwidth-recv').textContent = formatBytes(data.network_bandwidth.bytes_recv_per_sec) + '/s';
             
+            // 고급 대역폭 정보 업데이트
+            if (data.bandwidth_results) {
+                const bw = data.bandwidth_results;
+                
+                // 전송/수신 속도 (bps)
+                document.getElementById('upload-bps').textContent = formatBps(parseFloat(bw.upload_speed_bps || 0));
+                document.getElementById('download-bps').textContent = formatBps(parseFloat(bw.download_speed_bps || 0));
+                
+                // 실시간 업로드/다운로드
+                document.getElementById('realtime-upload').textContent = (bw.realtime_upload_mbps || '0.00') + ' Mbps';
+                document.getElementById('realtime-download').textContent = (bw.realtime_download_mbps || '0.00') + ' Mbps';
+                
+                // 테스트 상태
+                document.getElementById('test-status').textContent = getTestStatusText(bw.test_status);
+                document.getElementById('last-test-time').textContent = bw.last_test_time || '-';
+            }
+            
             // 압축 통계 업데이트
             document.getElementById('original-size').textContent = formatBytes(data.compression_stats.original_size);
             document.getElementById('compressed-size').textContent = formatBytes(data.compression_stats.compressed_size);
@@ -330,6 +371,29 @@
             const sizes = ['B', 'KB', 'MB', 'GB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        function formatBps(bps) {
+            if (bps === 0) return '0 bps';
+            if (bps >= 1_000_000_000) {
+                return (bps / 1_000_000_000).toFixed(2) + ' Gbps';
+            } else if (bps >= 1_000_000) {
+                return (bps / 1_000_000).toFixed(2) + ' Mbps';
+            } else if (bps >= 1_000) {
+                return (bps / 1_000).toFixed(2) + ' Kbps';
+            } else {
+                return bps.toFixed(0) + ' bps';
+            }
+        }
+        
+        function getTestStatusText(status) {
+            const statusMap = {
+                'idle': '대기 중',
+                'testing': '테스트 중...',
+                'completed': '완료',
+                'failed': '실패'
+            };
+            return statusMap[status] || '알 수 없음';
         }
         
         function updateChart(compressionRatio) {

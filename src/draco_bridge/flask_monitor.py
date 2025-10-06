@@ -9,6 +9,7 @@ from datetime import datetime
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
 import psutil
+from bandwidth_monitor import BandwidthMonitor
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'draco_monitor_secret'
@@ -35,6 +36,9 @@ class DracoMonitor:
         }
         self.last_net_io = None
         self.last_decoder_report = None  # 마지막 디코더 상태 보고 시간
+        
+        # 대역폭 모니터 초기화
+        self.bandwidth_monitor = BandwidthMonitor()
         
     def check_encoder_status(self):
         """인코더 서버 상태 확인"""
@@ -150,6 +154,9 @@ class DracoMonitor:
     
     def get_status_data(self):
         """전체 상태 데이터 반환"""
+        # 대역폭 측정 결과 가져오기
+        bandwidth_results = self.bandwidth_monitor.get_formatted_results()
+        
         return {
             'encoder_status': self.encoder_status,
             'decoder_status': self.decoder_status,
@@ -157,6 +164,7 @@ class DracoMonitor:
             'connection_count': self.connection_count,
             'compression_stats': self.compression_stats,
             'network_bandwidth': self.network_bandwidth,
+            'bandwidth_results': bandwidth_results,
             'system_info': self.get_system_info(),
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
@@ -246,6 +254,9 @@ def start_monitoring():
     """모니터링 시작"""
     monitor_thread = threading.Thread(target=monitoring_loop, daemon=True)
     monitor_thread.start()
+    
+    # 대역폭 모니터링 시작
+    monitor.bandwidth_monitor.start_monitoring()
 
 if __name__ == '__main__':
     start_monitoring()
