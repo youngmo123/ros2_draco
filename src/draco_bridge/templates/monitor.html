@@ -28,26 +28,26 @@
         .header {
             text-align: center;
             color: white;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
         
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
+        .header h2 {
+            font-size: 2.0em;
+            margin-bottom: 8px;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
         
         .status-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 12px;
+            margin-bottom: 15px;
         }
         
         .status-card {
             background: white;
             border-radius: 15px;
-            padding: 20px;
+            padding: 15px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
             transition: transform 0.3s ease;
         }
@@ -58,18 +58,19 @@
         
         .status-card h3 {
             color: #333;
-            margin-bottom: 15px;
-            font-size: 1.3em;
+            margin-bottom: 12px;
+            font-size: 1.2em;
             border-bottom: 2px solid #eee;
-            padding-bottom: 10px;
+            padding-bottom: 8px;
         }
         
         .status-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin: 10px 0;
-            padding: 8px 0;
+            margin: 8px 0;
+            padding: 6px 0;
+            font-size: 0.9em;
         }
         
         .status-indicator {
@@ -114,17 +115,17 @@
         .chart-container {
             background: white;
             border-radius: 15px;
-            padding: 20px;
+            padding: 15px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            margin-bottom: 15px;
-            max-height: 350px;
+            margin-bottom: 10px;
+            max-height: 280px;
         }
         
         .chart-title {
             text-align: center;
             color: #333;
-            margin-bottom: 15px;
-            font-size: 1.3em;
+            margin-bottom: 10px;
+            font-size: 1.2em;
         }
         
         .system-stats {
@@ -157,7 +158,7 @@
             text-align: center;
             color: #666;
             font-size: 0.9em;
-            margin-top: 20px;
+            margin-top: 10px;
         }
         
         .pulse {
@@ -272,7 +273,7 @@
         <!-- 차트 컨테이너 -->
         <div class="chart-container">
             <div class="chart-title">📈 압축률 추이</div>
-            <canvas id="compressionChart" width="400" height="200"></canvas>
+            <canvas id="compressionChart" width="400" height="160"></canvas>
         </div>
         
         <div class="timestamp">
@@ -307,6 +308,11 @@
                         display: false
                     }
                 },
+                layout: {
+                    padding: {
+                        bottom: 20
+                    }
+                },
                 scales: {
                     y: {
                         beginAtZero: true,
@@ -318,6 +324,11 @@
                     x: {
                         grid: {
                             display: false
+                        },
+                        ticks: {
+                            maxRotation: 0,
+                            minRotation: 0,
+                            padding: 5
                         }
                     }
                 }
