@@ -112,16 +112,32 @@ class DecoderClient(Node):
         self.connected = False
         self.running = True
         self.template_msg = None  # 첫 번째 메시지를 템플릿으로 사용
-        # 모니터 URL 설정 - 여러 IP 시도
-        self.monitor_urls = [
-            "http://192.168.0.16:5000/api/decoder_status",  # 송신 PC IP
-            "http://localhost:5000/api/decoder_status",      # 로컬호스트
-            "http://127.0.0.1:5000/api/decoder_status"      # 로컬호스트 대체
-        ]
+        
+        # 모니터 URL 설정 - 자동으로 송신 PC IP 감지
+        self.monitor_urls = self._setup_monitor_urls()
         self.monitor_url = self.monitor_urls[0]  # 기본값
 
         threading.Thread(target=self.connect_and_receive_loop, daemon=True).start()
         threading.Thread(target=self.status_report_loop, daemon=True).start()
+
+    def _setup_monitor_urls(self):
+        """모니터 URL 설정 - 자동으로 송신 PC IP 감지"""
+        monitor_urls = []
+        
+        # 1. 송신 PC IP를 자동 감지하여 추가
+        if self.tcp_server_ip:
+            server_ip = self.tcp_server_ip
+            monitor_urls.append(f"http://{server_ip}:5000/api/decoder_status")
+            self.get_logger().info(f'[Monitor] Auto-detected server IP for monitor: {server_ip}')
+        
+        # 2. 로컬호스트 대안들 추가
+        monitor_urls.extend([
+            "http://localhost:5000/api/decoder_status",
+            "http://127.0.0.1:5000/api/decoder_status"
+        ])
+        
+        self.get_logger().info(f'[Monitor] Monitor URLs configured: {monitor_urls}')
+        return monitor_urls
 
     def connect_and_receive_loop(self):
         while self.running:
