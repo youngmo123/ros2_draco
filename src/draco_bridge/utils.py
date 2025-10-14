@@ -6,7 +6,7 @@ from .draco_wrapper import encode_pointcloud_with_draco, decode_pointcloud_with_
 
 def encode_draco(pc2: PointCloud2) -> bytes:
     """
-    PointCloud2를 Draco로 압축 (Draco만 사용)
+    PointCloud2를 Draco로 압축 (Draco 전용)
     """
     print(f"[DEBUG] encode_draco called with {len(pc2.data)} bytes")
     
@@ -18,7 +18,7 @@ def encode_draco(pc2: PointCloud2) -> bytes:
     compressed_data = encode_pointcloud_with_draco(points)
     
     if compressed_data is None:
-        raise Exception("Draco compression failed")
+        raise Exception("Draco compression failed - no fallback allowed")
     
     print(f"[DEBUG] Draco compression successful: {len(compressed_data)} bytes")
     # Draco 압축 헤더와 함께 반환
@@ -27,7 +27,7 @@ def encode_draco(pc2: PointCloud2) -> bytes:
 
 def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
     """
-    Draco 압축된 데이터를 PointCloud2로 해제 (Draco만 사용)
+    Draco 압축된 데이터를 PointCloud2로 해제 (Draco 전용)
     """
     print(f"[DEBUG] decode_draco called with {len(buf)} bytes")
     
@@ -48,7 +48,7 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
     points = decode_pointcloud_with_draco(compressed_data)
     
     if points is None or len(points) == 0:
-        raise Exception("Draco decompression failed or empty result")
+        raise Exception("Draco decompression failed - no fallback allowed")
     
     print(f"[DEBUG] Draco decompression successful: {len(points)} points")
     print(f"[DEBUG] Decoded points shape: {points.shape}")
