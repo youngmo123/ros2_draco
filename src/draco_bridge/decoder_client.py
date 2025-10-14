@@ -235,12 +235,12 @@ class DecoderClient(Node):
             
             # 템플릿 메시지가 없으면 기본 템플릿 생성
             if self.template_msg is None:
+                from sensor_msgs.msg import PointField
                 self.template_msg = PointCloud2()
                 self.template_msg.header.frame_id = self.frame_id
                 self.template_msg.is_bigendian = False
                 self.template_msg.is_dense = True
                 # 기본 필드 설정
-                from sensor_msgs.msg import PointField
                 self.template_msg.fields = [
                     PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
                     PointField(name='y', offset=4, datatype=PointField.FLOAT32, count=1),
@@ -252,9 +252,6 @@ class DecoderClient(Node):
             # Draco 압축 해제
             self.get_logger().info(f'[Decoder] Starting Draco decompression...')
             pointcloud_msg = decode_draco(data, self.template_msg)
-            
-            # 완전히 새로운 메시지 생성 (이전 프레임과 완전히 분리)
-            from sensor_msgs.msg import PointCloud2, PointField
             
             new_msg = PointCloud2()
             new_msg.header.stamp = self.get_clock().now().to_msg()  # 현재 시간으로 설정
