@@ -115,27 +115,8 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
     print(f"[DEBUG] Decoded data sample (first 3 points): {points[:3].tolist()}")
     print(f"[DEBUG] Decoded data stats - min: {points.min(axis=0)}, max: {points.max(axis=0)}")
     
-    # 중복 포인트 체크 및 제거 (디코딩 후)
-    if len(points) > 0:
-        unique_points = np.unique(points.view(np.void), axis=0)
-        print(f"[DEBUG] Decoded unique points: {len(unique_points)} out of {len(points)} total points")
-        if len(unique_points) < len(points):
-            duplicate_ratio = (len(points) - len(unique_points)) / len(points) * 100
-            print(f"[DEBUG] WARNING: {duplicate_ratio:.2f}% duplicate points in decoded data!")
-            print(f"[DEBUG] Removing duplicates from decoded data...")
-            
-            # 중복 제거 (원본 포인트 순서 유지)
-            _, unique_indices = np.unique(points.view(np.void), axis=0, return_index=True)
-            points = points[sorted(unique_indices)]
-            print(f"[DEBUG] After deduplication: {len(points)} unique points")
-            
-            # width와 height 업데이트 (중복 제거로 인한 변경)
-            actual_points = len(points)
-            if actual_points != width * height:
-                print(f"[DEBUG] Updating dimensions: {width}x{height} -> {actual_points} points")
-                height = 1  # 1D 배열로 변경
-                width = actual_points
-                print(f"[DEBUG] Updated width: {width}, height: {height}, expected data size: {width * height * point_step}")
+    # 중복 포인트 제거 로직 제거 - 원본 포인트 순서와 구조를 유지
+    # (중복 제거는 포인트 클라우드를 꼬이게 만들 수 있음)
     
     # Draco 해제 성공
     msg = PointCloud2()
