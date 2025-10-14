@@ -237,9 +237,8 @@ class DecoderClient(Node):
             if self.template_msg is None:
                 self.template_msg = PointCloud2()
                 self.template_msg.header.frame_id = self.frame_id
-                self.template_msg.header.seq = 0  # 시퀀스 번호 초기화
                 self.template_msg.is_bigendian = False
-                self.template_msg.is_dense = False  # False로 설정하여 RViz2가 모든 포인트 렌더링
+                self.template_msg.is_dense = True  # True로 설정 (RViz2가 제대로 렌더링)
                 # 기본 필드 설정
                 from sensor_msgs.msg import PointField
                 self.template_msg.fields = [
@@ -254,17 +253,13 @@ class DecoderClient(Node):
             self.get_logger().info(f'[Decoder] Starting Draco decompression...')
             pointcloud_msg = decode_draco(data, self.template_msg)
             
-            # 타임스탬프 업데이트 (RViz2가 새 프레임으로 인식하도록)
+            # 타임스탬프 업데이트 (매 프레임마다 새로운 타임스탬프로 RViz2가 새 프레임으로 인식)
             pointcloud_msg.header.stamp = self.get_clock().now().to_msg()
-            pointcloud_msg.header.seq += 1  # 시퀀스 번호 증가
             
             # 포인트 클라우드 크기 검증 및 조정
             if pointcloud_msg.width < 10:
                 self.get_logger().warn(f'[Decoder] Pointcloud too small: {pointcloud_msg.width}x{pointcloud_msg.height}, skipping...')
                 return
-            
-            # is_dense를 False로 설정하여 RViz2가 모든 포인트를 렌더링하도록 함
-            pointcloud_msg.is_dense = False
             
             # 토픽 발행
             self.get_logger().info(f'[Decoder] Publishing pointcloud: {pointcloud_msg.width}x{pointcloud_msg.height}, {len(pointcloud_msg.data)} bytes')
