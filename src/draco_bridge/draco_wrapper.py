@@ -68,9 +68,9 @@ def encode_pointcloud_with_draco(points_array):
         with tempfile.NamedTemporaryFile(suffix='.drc', delete=False) as f:
             output_file = f.name
         
-        # draco_encoder 실행 (무손실 압축 시도)
+        # draco_encoder 실행 (안전한 압축 설정)
         encoder_path = os.path.expanduser("~/draco/build/draco_encoder")
-        cmd = [encoder_path, "-i", input_file, "-o", output_file, "-qp", "0", "-cl", "0", "-pos", "15"]
+        cmd = [encoder_path, "-i", input_file, "-o", output_file, "-qp", "2", "-cl", "2", "-pos", "10"]
         
         result = subprocess.run(cmd, capture_output=True, text=True)
         print(f"[DEBUG] Draco encoder command: {' '.join(cmd)}")

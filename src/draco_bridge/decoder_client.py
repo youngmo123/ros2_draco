@@ -231,6 +231,8 @@ class DecoderClient(Node):
     def process_received_data(self, data):
         """수신된 데이터 처리 및 포인트 클라우드 발행"""
         try:
+            self.get_logger().info(f'[Decoder] Processing received data: {len(data)} bytes')
+            
             # 템플릿 메시지가 없으면 기본 템플릿 생성
             if self.template_msg is None:
                 self.template_msg = PointCloud2()
@@ -245,18 +247,24 @@ class DecoderClient(Node):
                     PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
                     PointField(name='intensity', offset=12, datatype=PointField.FLOAT32, count=1),
                 ]
+                self.get_logger().info(f'[Decoder] Created template message with frame_id: {self.frame_id}')
             
             # Draco 압축 해제
+            self.get_logger().info(f'[Decoder] Starting Draco decompression...')
             pointcloud_msg = decode_draco(data, self.template_msg)
             
             # 타임스탬프 업데이트
             pointcloud_msg.header.stamp = self.get_clock().now().to_msg()
             
             # 토픽 발행
+            self.get_logger().info(f'[Decoder] Publishing pointcloud: {pointcloud_msg.width}x{pointcloud_msg.height}, {len(pointcloud_msg.data)} bytes')
             self.pub.publish(pointcloud_msg)
+            self.get_logger().info(f'[Decoder] Successfully published pointcloud!')
             
         except Exception as e:
             self.get_logger().error(f'[Decoder] Error processing received data: {e}')
+            import traceback
+            self.get_logger().error(f'[Decoder] Traceback: {traceback.format_exc()}')
 
     def status_report_loop(self):
         """주기적으로 상태를 Flask 모니터에 보고"""
