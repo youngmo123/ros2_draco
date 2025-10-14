@@ -239,7 +239,7 @@ class DecoderClient(Node):
                 self.template_msg = PointCloud2()
                 self.template_msg.header.frame_id = self.frame_id
                 self.template_msg.is_bigendian = False
-                self.template_msg.is_dense = True
+                self.template_msg.is_dense = False  # False로 설정하여 RViz2가 모든 포인트를 독립적으로 렌더링
                 # 기본 필드 설정
                 self.template_msg.fields = [
                     PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
