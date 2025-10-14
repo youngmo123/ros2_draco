@@ -6,40 +6,28 @@ from .draco_wrapper import encode_pointcloud_with_draco, decode_pointcloud_with_
 
 def encode_draco(pc2: PointCloud2) -> bytes:
     """
-    PointCloud2를 Draco로 압축 (품질 문제 시 원본 데이터 사용)
+    PointCloud2를 Draco로 압축
     """
     print(f"[DEBUG] encode_draco called with {len(pc2.data)} bytes")
     
     # PointCloud2 데이터를 numpy 배열로 변환
     points = pointcloud2_to_numpy(pc2)
     print(f"[DEBUG] Converted to numpy array: {points.shape}")
-    print(f"[DEBUG] Original data sample (first 3 points): {points[:3].tolist()}")
-    print(f"[DEBUG] Original data stats - min: {points.min(axis=0)}, max: {points.max(axis=0)}")
     
-    try:
-        # Draco로 압축
-        compressed_data = encode_pointcloud_with_draco(points)
-        
-        if compressed_data is None:
-            print(f"[DEBUG] Draco compression failed, using raw data")
-            # Draco 압축 실패 시 원본 데이터 사용
-            header = struct.pack('<III', pc2.width, pc2.height, pc2.point_step)
-            return header + pc2.data
-        
-        print(f"[DEBUG] Draco compression successful: {len(compressed_data)} bytes")
-        # Draco 압축 헤더와 함께 반환
-        header = struct.pack('<III', pc2.width, pc2.height, pc2.point_step)
-        return header + compressed_data
-        
-    except Exception as e:
-        print(f"[DEBUG] Draco encoding error: {e}, using raw data")
-        # 에러 발생 시 원본 데이터 사용
-        header = struct.pack('<III', pc2.width, pc2.height, pc2.point_step)
-        return header + pc2.data
+    # Draco로 압축
+    compressed_data = encode_pointcloud_with_draco(points)
+    
+    if compressed_data is None:
+        raise Exception("Draco compression failed")
+    
+    print(f"[DEBUG] Draco compression successful: {len(compressed_data)} bytes")
+    # Draco 압축 헤더와 함께 반환
+    header = struct.pack('<III', pc2.width, pc2.height, pc2.point_step)
+    return header + compressed_data
 
 def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
     """
-    Draco 압축된 데이터를 PointCloud2로 해제 (Draco 전용)
+    Draco 압축된 데이터를 PointCloud2로 해제
     """
     print(f"[DEBUG] decode_draco called with {len(buf)} bytes")
     
@@ -56,72 +44,19 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
     print(f"[DEBUG] Compressed data size: {len(compressed_data)}")
     print(f"[DEBUG] Expected points from header: {width * height}")
     
-    try:
-        # Draco로 해제 시도
-        points = decode_pointcloud_with_draco(compressed_data)
-        
-        if points is None or len(points) == 0:
-            print(f"[DEBUG] Draco decompression failed, using raw data")
-            # Draco 해제 실패 시 원본 데이터 사용
-            msg = PointCloud2()
-            msg.header.frame_id = template.header.frame_id
-            msg.header.stamp = template.header.stamp
-            msg.height = height
-            msg.width = width
-            msg.is_bigendian = template.is_bigendian
-            msg.point_step = point_step
-            msg.row_step = point_step * width
-            msg.is_dense = template.is_dense
-            msg.fields = template.fields
-            msg.data = compressed_data  # 원본 데이터 직접 사용
-            print(f"[DEBUG] Using raw data: {len(msg.data)} bytes")
-            
-            # 원본 데이터도 크기 검증
-            expected_data_size = msg.width * msg.height * msg.point_step
-            actual_data_size = len(msg.data)
-            if actual_data_size != expected_data_size:
-                print(f"[DEBUG] Raw data size mismatch! Actual: {actual_data_size}, Expected: {expected_data_size}")
-                print(f"[DEBUG] This may cause rviz2 errors")
-            
-            return msg
-            
-    except Exception as e:
-        print(f"[DEBUG] Draco decoding error: {e}, using raw data")
-        # 에러 발생 시 원본 데이터 사용
-        msg = PointCloud2()
-        msg.header.frame_id = template.header.frame_id
-        msg.header.stamp = template.header.stamp
-        msg.height = height
-        msg.width = width
-        msg.is_bigendian = template.is_bigendian
-        msg.point_step = point_step
-        msg.row_step = point_step * width
-        msg.is_dense = template.is_dense
-        msg.fields = template.fields
-        msg.data = compressed_data  # 원본 데이터 직접 사용
-        print(f"[DEBUG] Using raw data due to error: {len(msg.data)} bytes")
-        
-        # 에러 시 원본 데이터도 크기 검증
-        expected_data_size = msg.width * msg.height * msg.point_step
-        actual_data_size = len(msg.data)
-        if actual_data_size != expected_data_size:
-            print(f"[DEBUG] Error raw data size mismatch! Actual: {actual_data_size}, Expected: {expected_data_size}")
-            print(f"[DEBUG] This will cause rviz2 errors")
-        
-        return msg
+    # Draco로 해제
+    points = decode_pointcloud_with_draco(compressed_data)
+    
+    if points is None or len(points) == 0:
+        raise Exception("Draco decompression failed")
     
     print(f"[DEBUG] Draco decompression successful: {len(points)} points")
     print(f"[DEBUG] Decoded points shape: {points.shape}")
-    print(f"[DEBUG] Decoded data sample (first 3 points): {points[:3].tolist()}")
-    print(f"[DEBUG] Decoded data stats - min: {points.min(axis=0)}, max: {points.max(axis=0)}")
     
-    # Draco 해제 성공
+    # PointCloud2 메시지 생성
     msg = PointCloud2()
-    # 완전히 새로운 Header 객체 생성 (frame_id만 복사, stamp는 decoder_client에서 설정)
-    from std_msgs.msg import Header
-    msg.header = Header()
     msg.header.frame_id = template.header.frame_id
-    # stamp는 decoder_client.py에서 현재 시간으로 설정됨
+    msg.header.stamp = template.header.stamp
     
     # width와 height를 실제 포인트 수에 맞게 조정
     actual_points = len(points)
@@ -129,7 +64,7 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
     msg.width = actual_points
     msg.is_bigendian = template.is_bigendian
     msg.point_step = point_step
-    msg.row_step = point_step * actual_points  # 실제 포인트 수에 맞게 조정
+    msg.row_step = point_step * actual_points
     msg.is_dense = template.is_dense
     msg.fields = template.fields
     
@@ -143,10 +78,8 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
     print(f"[DEBUG] Final PointCloud2: width={msg.width}, height={msg.height}, point_step={msg.point_step}")
     print(f"[DEBUG] Final data size: {actual_data_size} bytes, expected: {expected_data_size} bytes")
     
-    # 데이터 크기가 일치하지 않으면 경고만 출력 (패딩/자르기 하지 않음)
     if actual_data_size != expected_data_size:
         print(f"[DEBUG] WARNING: Data size mismatch! Actual: {actual_data_size}, Expected: {expected_data_size}")
-        print(f"[DEBUG] This may cause issues in rviz2")
     
     return msg
 
@@ -197,18 +130,12 @@ def pointcloud2_to_numpy(pc2: PointCloud2) -> np.ndarray:
             points[:available_points] = data[:available_points * points_per_row].reshape(available_points, points_per_row)
         print(f"[DEBUG] Final shape after padding: {points.shape}")
     
-    # 중복 포인트 체크 및 제거
+    # 중복 포인트 체크 (제거하지 않음 - 원본 순서 유지)
     unique_points = np.unique(points.view(np.void), axis=0)
     print(f"[DEBUG] Unique points: {len(unique_points)} out of {len(points)} total points")
     if len(unique_points) < len(points):
         duplicate_ratio = (len(points) - len(unique_points)) / len(points) * 100
-        print(f"[DEBUG] WARNING: {duplicate_ratio:.2f}% duplicate points detected!")
-        print(f"[DEBUG] Removing duplicates to prevent overlapping visualization...")
-        
-        # 중복 제거 (원본 포인트 순서 유지)
-        _, unique_indices = np.unique(points.view(np.void), axis=0, return_index=True)
-        points = points[sorted(unique_indices)]
-        print(f"[DEBUG] After deduplication: {len(points)} unique points")
+        print(f"[DEBUG] INFO: {duplicate_ratio:.2f}% duplicate points detected (not removing to preserve order)")
     
     return points
 
