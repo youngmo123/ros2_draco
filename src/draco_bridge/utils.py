@@ -139,8 +139,11 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
     
     # Draco 해제 성공
     msg = PointCloud2()
+    # 완전히 새로운 Header 객체 생성 (frame_id만 복사, stamp는 decoder_client에서 설정)
+    from std_msgs.msg import Header
+    msg.header = Header()
     msg.header.frame_id = template.header.frame_id
-    msg.header.stamp = template.header.stamp
+    # stamp는 decoder_client.py에서 현재 시간으로 설정됨
     msg.height = height
     msg.width = width
     msg.is_bigendian = template.is_bigendian
