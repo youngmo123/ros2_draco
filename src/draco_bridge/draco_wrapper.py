@@ -68,9 +68,9 @@ def encode_pointcloud_with_draco(points_array):
         with tempfile.NamedTemporaryFile(suffix='.drc', delete=False) as f:
             output_file = f.name
         
-        # draco_encoder 실행
+        # draco_encoder 실행 (압축률을 낮춰서 데이터 손실 최소화)
         encoder_path = os.path.expanduser("~/draco/build/draco_encoder")
-        cmd = [encoder_path, "-i", input_file, "-o", output_file, "-qp", "14", "-cl", "10"]
+        cmd = [encoder_path, "-i", input_file, "-o", output_file, "-qp", "8", "-cl", "6"]
         
         result = subprocess.run(cmd, capture_output=True, text=True)
         print(f"[DEBUG] Draco encoder command: {' '.join(cmd)}")
@@ -163,12 +163,19 @@ def decode_pointcloud_with_draco(compressed_data):
                             data = f.read(16)
                             if len(data) == 16:
                                 x, y, z, intensity = struct.unpack('<ffff', data)
-                                points.append([x, y, z, intensity])
+                                # NaN이나 무한대 값 체크
+                                if not (np.isnan(x) or np.isnan(y) or np.isnan(z) or 
+                                       np.isinf(x) or np.isinf(y) or np.isinf(z)):
+                                    points.append([x, y, z, intensity])
+                                else:
+                                    print(f"[DEBUG] Skipping invalid point {i}: x={x}, y={y}, z={z}")
                             else:
-                                # 데이터가 부족한 경우 기본값으로 채움
-                                points.append([0.0, 0.0, 0.0, 0.0])
-                        except:
-                            points.append([0.0, 0.0, 0.0, 0.0])
+                                print(f"[DEBUG] Insufficient data for point {i}: {len(data)} bytes")
+                                # 데이터가 부족한 경우 건너뛰기
+                                continue
+                        except Exception as e:
+                            print(f"[DEBUG] Error reading point {i}: {e}")
+                            continue
                     
                     print(f"[DEBUG] Successfully read {len(points)} points from binary PLY")
                     
@@ -199,7 +206,15 @@ def decode_pointcloud_with_draco(compressed_data):
                                 if len(coords) >= 3:
                                     x, y, z = float(coords[0]), float(coords[1]), float(coords[2])
                                     intensity = float(coords[3]) if len(coords) > 3 else 0.0
-                                    points.append([x, y, z, intensity])
+                                    
+                                    # NaN이나 무한대 값 체크
+                                    if not (np.isnan(x) or np.isnan(y) or np.isnan(z) or 
+                                           np.isinf(x) or np.isinf(y) or np.isinf(z)):
+                                        points.append([x, y, z, intensity])
+                                    else:
+                                        print(f"[DEBUG] Skipping invalid point {i}: x={x}, y={y}, z={z}")
+                                else:
+                                    print(f"[DEBUG] Insufficient coordinates in line {i}: {len(coords)}")
                             except (ValueError, IndexError) as e:
                                 print(f"[DEBUG] Error parsing line {i}: {e}")
                                 continue

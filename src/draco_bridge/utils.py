@@ -42,6 +42,7 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
     
     print(f"[DEBUG] Header: width={width}, height={height}, point_step={point_step}")
     print(f"[DEBUG] Compressed data size: {len(compressed_data)}")
+    print(f"[DEBUG] Expected points from header: {width * height}")
     
     # Draco로 해제
     points = decode_pointcloud_with_draco(compressed_data)
@@ -50,6 +51,29 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
         raise Exception("Draco decompression failed or empty result")
     
     print(f"[DEBUG] Draco decompression successful: {len(points)} points")
+    print(f"[DEBUG] Decoded points shape: {points.shape}")
+    
+    # 중복 포인트 체크 및 제거 (디코딩 후)
+    if len(points) > 0:
+        unique_points = np.unique(points.view(np.void), axis=0)
+        print(f"[DEBUG] Decoded unique points: {len(unique_points)} out of {len(points)} total points")
+        if len(unique_points) < len(points):
+            duplicate_ratio = (len(points) - len(unique_points)) / len(points) * 100
+            print(f"[DEBUG] WARNING: {duplicate_ratio:.2f}% duplicate points in decoded data!")
+            print(f"[DEBUG] Removing duplicates from decoded data...")
+            
+            # 중복 제거 (원본 포인트 순서 유지)
+            _, unique_indices = np.unique(points.view(np.void), axis=0, return_index=True)
+            points = points[sorted(unique_indices)]
+            print(f"[DEBUG] After deduplication: {len(points)} unique points")
+            
+            # width와 height 업데이트 (중복 제거로 인한 변경)
+            actual_points = len(points)
+            if actual_points != width * height:
+                print(f"[DEBUG] Updating dimensions: {width}x{height} -> {actual_points} points")
+                height = 1  # 1D 배열로 변경
+                width = actual_points
+    
     # Draco 해제 성공
     msg = PointCloud2()
     msg.header.frame_id = template.header.frame_id
@@ -65,38 +89,72 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
     # numpy 배열을 bytes로 변환
     msg.data = points.tobytes()
     print(f"[DEBUG] Converted to {len(msg.data)} bytes")
+    
+    # 최종 검증
+    print(f"[DEBUG] Final PointCloud2: width={msg.width}, height={msg.height}, point_step={msg.point_step}")
+    print(f"[DEBUG] Final data size: {len(msg.data)} bytes")
+    
     return msg
 
 def pointcloud2_to_numpy(pc2: PointCloud2) -> np.ndarray:
     """
     PointCloud2를 numpy 배열로 변환
     """
+    print(f"[DEBUG] PointCloud2 info: width={pc2.width}, height={pc2.height}, point_step={pc2.point_step}")
+    print(f"[DEBUG] PointCloud2 data size: {len(pc2.data)} bytes")
+    print(f"[DEBUG] PointCloud2 fields: {[f.name for f in pc2.fields]}")
+    
     # 포인트 수 계산
     num_points = pc2.width * pc2.height
+    print(f"[DEBUG] Expected points: {num_points}")
     
     # 데이터 타입 결정
     if pc2.point_step == 16:  # x, y, z, intensity (각 4바이트)
         dtype = np.float32
         points_per_row = 4
+        print(f"[DEBUG] Using 4-component format (x,y,z,intensity)")
     elif pc2.point_step == 12:  # x, y, z (각 4바이트)
         dtype = np.float32
         points_per_row = 3
+        print(f"[DEBUG] Using 3-component format (x,y,z)")
     else:
         # 기본값으로 float32 사용
         dtype = np.float32
         points_per_row = 4
+        print(f"[DEBUG] Unknown point_step {pc2.point_step}, using 4-component format")
     
     # 데이터를 numpy 배열로 변환
     data = np.frombuffer(pc2.data, dtype=dtype)
+    print(f"[DEBUG] Raw data array shape: {data.shape}")
     
     # 포인트 클라우드 형태로 reshape
-    if len(data) >= num_points * points_per_row:
-        points = data[:num_points * points_per_row].reshape(num_points, points_per_row)
+    expected_elements = num_points * points_per_row
+    print(f"[DEBUG] Expected elements: {expected_elements}, actual elements: {len(data)}")
+    
+    if len(data) >= expected_elements:
+        points = data[:expected_elements].reshape(num_points, points_per_row)
+        print(f"[DEBUG] Successfully reshaped to: {points.shape}")
     else:
         # 데이터가 부족한 경우 0으로 패딩
+        print(f"[DEBUG] Data insufficient, padding with zeros")
         points = np.zeros((num_points, points_per_row), dtype=dtype)
         available_points = len(data) // points_per_row
-        points[:available_points] = data[:available_points * points_per_row].reshape(available_points, points_per_row)
+        if available_points > 0:
+            points[:available_points] = data[:available_points * points_per_row].reshape(available_points, points_per_row)
+        print(f"[DEBUG] Final shape after padding: {points.shape}")
+    
+    # 중복 포인트 체크 및 제거
+    unique_points = np.unique(points.view(np.void), axis=0)
+    print(f"[DEBUG] Unique points: {len(unique_points)} out of {len(points)} total points")
+    if len(unique_points) < len(points):
+        duplicate_ratio = (len(points) - len(unique_points)) / len(points) * 100
+        print(f"[DEBUG] WARNING: {duplicate_ratio:.2f}% duplicate points detected!")
+        print(f"[DEBUG] Removing duplicates to prevent overlapping visualization...")
+        
+        # 중복 제거 (원본 포인트 순서 유지)
+        _, unique_indices = np.unique(points.view(np.void), axis=0, return_index=True)
+        points = points[sorted(unique_indices)]
+        print(f"[DEBUG] After deduplication: {len(points)} unique points")
     
     return points
 
