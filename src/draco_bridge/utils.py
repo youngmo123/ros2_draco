@@ -170,7 +170,7 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
         else:
             # 데이터가 너무 작은 경우 패딩
             padding = b'\x00' * (expected_data_size - actual_data_size)
-            msg.data = msg.data + padding
+            msg.data = bytes(msg.data) + padding
         
         print(f"[DEBUG] Fixed data size: {len(msg.data)} bytes")
     
