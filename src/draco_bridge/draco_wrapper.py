@@ -68,9 +68,12 @@ def encode_pointcloud_with_draco(points_array):
         with tempfile.NamedTemporaryFile(suffix='.drc', delete=False) as f:
             output_file = f.name
         
-        # draco_encoder 실행 (최대 품질 설정)
+        # draco_encoder 실행 (높은 압축률과 품질 균형 설정)
+        # -qp 11: quantization precision (높을수록 압축률 높음, 0-11 범위)
+        # -cl 7: compression level (높을수록 압축률 높음, 0-10 범위)
+        # -pos 14: position quantization bits (낮을수록 압축률 높음, 10-30 범위)
         encoder_path = os.path.expanduser("~/draco/build/draco_encoder")
-        cmd = [encoder_path, "-i", input_file, "-o", output_file, "-qp", "0", "-cl", "0", "-pos", "20"]
+        cmd = [encoder_path, "-i", input_file, "-o", output_file, "-qp", "11", "-cl", "7", "-pos", "14"]
         
         result = subprocess.run(cmd, capture_output=True, text=True)
         print(f"[DEBUG] Draco encoder command: {' '.join(cmd)}")
