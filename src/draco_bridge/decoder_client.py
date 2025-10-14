@@ -238,7 +238,7 @@ class DecoderClient(Node):
                 self.template_msg = PointCloud2()
                 self.template_msg.header.frame_id = self.frame_id
                 self.template_msg.is_bigendian = False
-                self.template_msg.is_dense = True  # True로 설정 (RViz2가 제대로 렌더링)
+                self.template_msg.is_dense = True
                 # 기본 필드 설정
                 from sensor_msgs.msg import PointField
                 self.template_msg.fields = [
@@ -253,18 +253,30 @@ class DecoderClient(Node):
             self.get_logger().info(f'[Decoder] Starting Draco decompression...')
             pointcloud_msg = decode_draco(data, self.template_msg)
             
-            # 타임스탬프 업데이트 (매 프레임마다 새로운 타임스탬프로 RViz2가 새 프레임으로 인식)
-            pointcloud_msg.header.stamp = self.get_clock().now().to_msg()
+            # 완전히 새로운 메시지 생성 (이전 프레임과 완전히 분리)
+            from sensor_msgs.msg import PointCloud2, PointField
+            
+            new_msg = PointCloud2()
+            new_msg.header.stamp = self.get_clock().now().to_msg()  # 현재 시간으로 설정
+            new_msg.header.frame_id = self.frame_id
+            new_msg.height = pointcloud_msg.height
+            new_msg.width = pointcloud_msg.width
+            new_msg.fields = pointcloud_msg.fields
+            new_msg.is_bigendian = pointcloud_msg.is_bigendian
+            new_msg.point_step = pointcloud_msg.point_step
+            new_msg.row_step = pointcloud_msg.row_step
+            new_msg.is_dense = pointcloud_msg.is_dense
+            new_msg.data = pointcloud_msg.data  # 데이터 복사
             
             # 포인트 클라우드 크기 검증 및 조정
-            if pointcloud_msg.width < 10:
-                self.get_logger().warn(f'[Decoder] Pointcloud too small: {pointcloud_msg.width}x{pointcloud_msg.height}, skipping...')
+            if new_msg.width < 10:
+                self.get_logger().warn(f'[Decoder] Pointcloud too small: {new_msg.width}x{new_msg.height}, skipping...')
                 return
             
             # 토픽 발행
-            self.get_logger().info(f'[Decoder] Publishing pointcloud: {pointcloud_msg.width}x{pointcloud_msg.height}, {len(pointcloud_msg.data)} bytes')
-            self.pub.publish(pointcloud_msg)
-            self.get_logger().info(f'[Decoder] Successfully published pointcloud!')
+            self.get_logger().info(f'[Decoder] Publishing NEW pointcloud: {new_msg.width}x{new_msg.height}, {len(new_msg.data)} bytes, stamp: {new_msg.header.stamp}')
+            self.pub.publish(new_msg)
+            self.get_logger().info(f'[Decoder] Successfully published NEW pointcloud!')
             
         except Exception as e:
             self.get_logger().error(f'[Decoder] Error processing received data: {e}')
