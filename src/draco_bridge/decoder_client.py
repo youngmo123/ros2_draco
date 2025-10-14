@@ -103,7 +103,7 @@ class DecoderClient(Node):
 
         pub_qos = QoSProfile(
             history=HistoryPolicy.KEEP_LAST, depth=self.qos_depth,
-            reliability=reliability,
+            reliability=ReliabilityPolicy.BEST_EFFORT,  # BEST_EFFORT로 변경
             durability=DurabilityPolicy.VOLATILE
         )
         self.pub = self.create_publisher(PointCloud2, self.output_topic, pub_qos)
@@ -255,6 +255,11 @@ class DecoderClient(Node):
             
             # 타임스탬프 업데이트
             pointcloud_msg.header.stamp = self.get_clock().now().to_msg()
+            
+            # 포인트 클라우드 크기 검증 및 조정
+            if pointcloud_msg.width < 10:
+                self.get_logger().warn(f'[Decoder] Pointcloud too small: {pointcloud_msg.width}x{pointcloud_msg.height}, skipping...')
+                return
             
             # 토픽 발행
             self.get_logger().info(f'[Decoder] Publishing pointcloud: {pointcloud_msg.width}x{pointcloud_msg.height}, {len(pointcloud_msg.data)} bytes')
