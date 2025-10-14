@@ -115,9 +115,6 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
     print(f"[DEBUG] Decoded data sample (first 3 points): {points[:3].tolist()}")
     print(f"[DEBUG] Decoded data stats - min: {points.min(axis=0)}, max: {points.max(axis=0)}")
     
-    # 중복 포인트 제거 로직 제거 - 원본 포인트 순서와 구조를 유지
-    # (중복 제거는 포인트 클라우드를 꼬이게 만들 수 있음)
-    
     # Draco 해제 성공
     msg = PointCloud2()
     # 완전히 새로운 Header 객체 생성 (frame_id만 복사, stamp는 decoder_client에서 설정)
@@ -125,11 +122,14 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
     msg.header = Header()
     msg.header.frame_id = template.header.frame_id
     # stamp는 decoder_client.py에서 현재 시간으로 설정됨
-    msg.height = height
-    msg.width = width
+    
+    # width와 height를 실제 포인트 수에 맞게 조정
+    actual_points = len(points)
+    msg.height = 1
+    msg.width = actual_points
     msg.is_bigendian = template.is_bigendian
     msg.point_step = point_step
-    msg.row_step = point_step * width
+    msg.row_step = point_step * actual_points  # 실제 포인트 수에 맞게 조정
     msg.is_dense = template.is_dense
     msg.fields = template.fields
     
@@ -143,20 +143,10 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
     print(f"[DEBUG] Final PointCloud2: width={msg.width}, height={msg.height}, point_step={msg.point_step}")
     print(f"[DEBUG] Final data size: {actual_data_size} bytes, expected: {expected_data_size} bytes")
     
+    # 데이터 크기가 일치하지 않으면 경고만 출력 (패딩/자르기 하지 않음)
     if actual_data_size != expected_data_size:
-        print(f"[DEBUG] ERROR: Data size mismatch! Actual: {actual_data_size}, Expected: {expected_data_size}")
-        print(f"[DEBUG] Fixing data size...")
-        
-        # 데이터 크기를 올바르게 조정
-        if actual_data_size > expected_data_size:
-            # 데이터가 너무 큰 경우 잘라내기
-            msg.data = msg.data[:expected_data_size]
-        else:
-            # 데이터가 너무 작은 경우 패딩
-            padding = b'\x00' * (expected_data_size - actual_data_size)
-            msg.data = bytes(msg.data) + padding
-        
-        print(f"[DEBUG] Fixed data size: {len(msg.data)} bytes")
+        print(f"[DEBUG] WARNING: Data size mismatch! Actual: {actual_data_size}, Expected: {expected_data_size}")
+        print(f"[DEBUG] This may cause issues in rviz2")
     
     return msg
 
