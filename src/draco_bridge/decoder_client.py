@@ -239,7 +239,7 @@ class DecoderClient(Node):
                 self.template_msg = PointCloud2()
                 self.template_msg.header.frame_id = self.frame_id
                 self.template_msg.is_bigendian = False
-                self.template_msg.is_dense = False  # False로 설정하여 RViz2가 모든 포인트를 독립적으로 렌더링
+                self.template_msg.is_dense = True  # True로 설정하여 RViz2가 포인트를 올바르게 렌더링
                 # 기본 필드 설정
                 self.template_msg.fields = [
                     PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
@@ -253,7 +253,7 @@ class DecoderClient(Node):
             self.get_logger().info(f'[Decoder] Starting Draco decompression...')
             pointcloud_msg = decode_draco(data, self.template_msg)
             
-            # 완전히 새로운 메시지 생성 (고유한 타임스탬프로 RViz2가 새 프레임으로 인식)
+            # 완전히 새로운 메시지 생성 (고유한 타임스탬프와 frame_id로 RViz2가 새 프레임으로 인식)
             import time
             from builtin_interfaces.msg import Time
             
@@ -261,7 +261,8 @@ class DecoderClient(Node):
             # 현재 시간을 나노초 단위로 고유하게 생성
             now = self.get_clock().now()
             new_msg.header.stamp = now.to_msg()
-            new_msg.header.frame_id = self.frame_id
+            # 매 프레임마다 고유한 frame_id 생성 (RViz2가 완전히 새로운 프레임으로 인식)
+            new_msg.header.frame_id = f"{self.frame_id}_{now.nanoseconds}"
             new_msg.height = pointcloud_msg.height
             new_msg.width = pointcloud_msg.width
             new_msg.fields = pointcloud_msg.fields
