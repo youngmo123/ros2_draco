@@ -75,6 +75,14 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
             msg.fields = template.fields
             msg.data = compressed_data  # 원본 데이터 직접 사용
             print(f"[DEBUG] Using raw data: {len(msg.data)} bytes")
+            
+            # 원본 데이터도 크기 검증
+            expected_data_size = msg.width * msg.height * msg.point_step
+            actual_data_size = len(msg.data)
+            if actual_data_size != expected_data_size:
+                print(f"[DEBUG] Raw data size mismatch! Actual: {actual_data_size}, Expected: {expected_data_size}")
+                print(f"[DEBUG] This may cause rviz2 errors")
+            
             return msg
             
     except Exception as e:
@@ -92,6 +100,14 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
         msg.fields = template.fields
         msg.data = compressed_data  # 원본 데이터 직접 사용
         print(f"[DEBUG] Using raw data due to error: {len(msg.data)} bytes")
+        
+        # 에러 시 원본 데이터도 크기 검증
+        expected_data_size = msg.width * msg.height * msg.point_step
+        actual_data_size = len(msg.data)
+        if actual_data_size != expected_data_size:
+            print(f"[DEBUG] Error raw data size mismatch! Actual: {actual_data_size}, Expected: {expected_data_size}")
+            print(f"[DEBUG] This will cause rviz2 errors")
+        
         return msg
     
     print(f"[DEBUG] Draco decompression successful: {len(points)} points")
@@ -119,6 +135,7 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
                 print(f"[DEBUG] Updating dimensions: {width}x{height} -> {actual_points} points")
                 height = 1  # 1D 배열로 변경
                 width = actual_points
+                print(f"[DEBUG] Updated width: {width}, height: {height}, expected data size: {width * height * point_step}")
     
     # Draco 해제 성공
     msg = PointCloud2()
@@ -137,8 +154,25 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
     print(f"[DEBUG] Converted to {len(msg.data)} bytes")
     
     # 최종 검증
+    expected_data_size = msg.width * msg.height * msg.point_step
+    actual_data_size = len(msg.data)
     print(f"[DEBUG] Final PointCloud2: width={msg.width}, height={msg.height}, point_step={msg.point_step}")
-    print(f"[DEBUG] Final data size: {len(msg.data)} bytes")
+    print(f"[DEBUG] Final data size: {actual_data_size} bytes, expected: {expected_data_size} bytes")
+    
+    if actual_data_size != expected_data_size:
+        print(f"[DEBUG] ERROR: Data size mismatch! Actual: {actual_data_size}, Expected: {expected_data_size}")
+        print(f"[DEBUG] Fixing data size...")
+        
+        # 데이터 크기를 올바르게 조정
+        if actual_data_size > expected_data_size:
+            # 데이터가 너무 큰 경우 잘라내기
+            msg.data = msg.data[:expected_data_size]
+        else:
+            # 데이터가 너무 작은 경우 패딩
+            padding = b'\x00' * (expected_data_size - actual_data_size)
+            msg.data = msg.data + padding
+        
+        print(f"[DEBUG] Fixed data size: {len(msg.data)} bytes")
     
     return msg
 
