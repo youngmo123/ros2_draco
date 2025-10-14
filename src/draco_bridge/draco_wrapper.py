@@ -68,9 +68,9 @@ def encode_pointcloud_with_draco(points_array):
         with tempfile.NamedTemporaryFile(suffix='.drc', delete=False) as f:
             output_file = f.name
         
-        # draco_encoder 실행 (안전한 압축 설정)
+        # draco_encoder 실행 (최대 품질 설정)
         encoder_path = os.path.expanduser("~/draco/build/draco_encoder")
-        cmd = [encoder_path, "-i", input_file, "-o", output_file, "-qp", "2", "-cl", "2", "-pos", "10"]
+        cmd = [encoder_path, "-i", input_file, "-o", output_file, "-qp", "0", "-cl", "0", "-pos", "20"]
         
         result = subprocess.run(cmd, capture_output=True, text=True)
         print(f"[DEBUG] Draco encoder command: {' '.join(cmd)}")
@@ -158,6 +158,9 @@ def decode_pointcloud_with_draco(compressed_data):
                 return None
                 
             print(f"[DEBUG] Successfully parsed {len(points)} points from PLY")
+            if len(points) > 0:
+                print(f"[DEBUG] PLY data sample (first 3 points): {points[:3]}")
+                print(f"[DEBUG] PLY data stats - min: {[min(p[i] for p in points) for i in range(4)]}, max: {[max(p[i] for p in points) for i in range(4)]}")
                 
         except Exception as e:
             print(f"[DEBUG] Error reading PLY file: {e}")

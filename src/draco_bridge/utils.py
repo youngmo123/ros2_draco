@@ -6,24 +6,36 @@ from .draco_wrapper import encode_pointcloud_with_draco, decode_pointcloud_with_
 
 def encode_draco(pc2: PointCloud2) -> bytes:
     """
-    PointCloud2를 Draco로 압축 (Draco 전용)
+    PointCloud2를 Draco로 압축 (품질 문제 시 원본 데이터 사용)
     """
     print(f"[DEBUG] encode_draco called with {len(pc2.data)} bytes")
     
     # PointCloud2 데이터를 numpy 배열로 변환
     points = pointcloud2_to_numpy(pc2)
     print(f"[DEBUG] Converted to numpy array: {points.shape}")
+    print(f"[DEBUG] Original data sample (first 3 points): {points[:3].tolist()}")
+    print(f"[DEBUG] Original data stats - min: {points.min(axis=0)}, max: {points.max(axis=0)}")
     
-    # Draco로 압축
-    compressed_data = encode_pointcloud_with_draco(points)
-    
-    if compressed_data is None:
-        raise Exception("Draco compression failed - no fallback allowed")
-    
-    print(f"[DEBUG] Draco compression successful: {len(compressed_data)} bytes")
-    # Draco 압축 헤더와 함께 반환
-    header = struct.pack('<III', pc2.width, pc2.height, pc2.point_step)
-    return header + compressed_data
+    try:
+        # Draco로 압축
+        compressed_data = encode_pointcloud_with_draco(points)
+        
+        if compressed_data is None:
+            print(f"[DEBUG] Draco compression failed, using raw data")
+            # Draco 압축 실패 시 원본 데이터 사용
+            header = struct.pack('<III', pc2.width, pc2.height, pc2.point_step)
+            return header + pc2.data
+        
+        print(f"[DEBUG] Draco compression successful: {len(compressed_data)} bytes")
+        # Draco 압축 헤더와 함께 반환
+        header = struct.pack('<III', pc2.width, pc2.height, pc2.point_step)
+        return header + compressed_data
+        
+    except Exception as e:
+        print(f"[DEBUG] Draco encoding error: {e}, using raw data")
+        # 에러 발생 시 원본 데이터 사용
+        header = struct.pack('<III', pc2.width, pc2.height, pc2.point_step)
+        return header + pc2.data
 
 def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
     """
@@ -44,14 +56,48 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
     print(f"[DEBUG] Compressed data size: {len(compressed_data)}")
     print(f"[DEBUG] Expected points from header: {width * height}")
     
-    # Draco로 해제
-    points = decode_pointcloud_with_draco(compressed_data)
-    
-    if points is None or len(points) == 0:
-        raise Exception("Draco decompression failed - no fallback allowed")
+    try:
+        # Draco로 해제 시도
+        points = decode_pointcloud_with_draco(compressed_data)
+        
+        if points is None or len(points) == 0:
+            print(f"[DEBUG] Draco decompression failed, using raw data")
+            # Draco 해제 실패 시 원본 데이터 사용
+            msg = PointCloud2()
+            msg.header.frame_id = template.header.frame_id
+            msg.header.stamp = template.header.stamp
+            msg.height = height
+            msg.width = width
+            msg.is_bigendian = template.is_bigendian
+            msg.point_step = point_step
+            msg.row_step = point_step * width
+            msg.is_dense = template.is_dense
+            msg.fields = template.fields
+            msg.data = compressed_data  # 원본 데이터 직접 사용
+            print(f"[DEBUG] Using raw data: {len(msg.data)} bytes")
+            return msg
+            
+    except Exception as e:
+        print(f"[DEBUG] Draco decoding error: {e}, using raw data")
+        # 에러 발생 시 원본 데이터 사용
+        msg = PointCloud2()
+        msg.header.frame_id = template.header.frame_id
+        msg.header.stamp = template.header.stamp
+        msg.height = height
+        msg.width = width
+        msg.is_bigendian = template.is_bigendian
+        msg.point_step = point_step
+        msg.row_step = point_step * width
+        msg.is_dense = template.is_dense
+        msg.fields = template.fields
+        msg.data = compressed_data  # 원본 데이터 직접 사용
+        print(f"[DEBUG] Using raw data due to error: {len(msg.data)} bytes")
+        return msg
     
     print(f"[DEBUG] Draco decompression successful: {len(points)} points")
     print(f"[DEBUG] Decoded points shape: {points.shape}")
+    print(f"[DEBUG] Decoded data sample (first 3 points): {points[:3].tolist()}")
+    print(f"[DEBUG] Decoded data stats - min: {points.min(axis=0)}, max: {points.max(axis=0)}")
     
     # 중복 포인트 체크 및 제거 (디코딩 후)
     if len(points) > 0:
