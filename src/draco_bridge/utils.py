@@ -54,9 +54,12 @@ def decode_draco(buf: bytes, template: PointCloud2) -> PointCloud2:
     print(f"[DEBUG] Decoded points shape: {points.shape}")
     
     # PointCloud2 메시지 생성
+    from std_msgs.msg import Header
     msg = PointCloud2()
+    # 완전히 새로운 Header 객체 생성 (stamp는 decoder_client에서 설정)
+    msg.header = Header()
     msg.header.frame_id = template.header.frame_id
-    msg.header.stamp = template.header.stamp
+    # stamp는 의도적으로 설정하지 않음 - decoder_client.py에서 현재 시간으로 설정됨
     
     # width와 height를 실제 포인트 수에 맞게 조정
     actual_points = len(points)
