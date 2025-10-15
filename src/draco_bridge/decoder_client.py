@@ -103,7 +103,7 @@ class DecoderClient(Node):
 
         pub_qos = QoSProfile(
             history=HistoryPolicy.KEEP_LAST, depth=self.qos_depth,
-            reliability=ReliabilityPolicy.BEST_EFFORT,  # BEST_EFFORT로 변경
+            reliability=ReliabilityPolicy.RELIABLE,  # RELIABLE로 변경
             durability=DurabilityPolicy.VOLATILE
         )
         self.pub = self.create_publisher(PointCloud2, self.output_topic, pub_qos)
